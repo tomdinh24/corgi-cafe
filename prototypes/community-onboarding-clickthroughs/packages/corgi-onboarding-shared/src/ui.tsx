@@ -360,9 +360,7 @@ export function SourceBadge({
         ? `Found on ${host ?? "a public page"}`
         : kind === "edited"
           ? "Edited by you"
-          : kind === "identifier"
-            ? "Added by you · Link only"
-            : "Suggested by Corgi";
+          : "Suggested by Corgi";
   return <span className={`source-badge ${kind}`}>{text}</span>;
 }
 

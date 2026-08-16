@@ -6,18 +6,17 @@
 **Audience:** Corgi Cafe Tech Ops, Product, Design, Engineering, and Legal  
 **Date researched:** August 15, 2026  
 **Owners:** Standing Engineering Manager and Product Lead  
-**Primary provider candidate:** Crustdata, per human product direction  
+**Historical provider candidate:** Crustdata, per earlier human product direction
 **Production decision:** No vendor or architecture approved
 
 ---
 
-> **Experiment update, August 15, 2026:** The active prototype now uses Exa People Search with
-> explicit member confirmation of one structured person candidate. The standalone Manual and AI
-> Web prototypes were retired after owner evaluation; Exa retains an in-flow manual fallback.
-> This supersedes the Crustdata shadow test below as the immediate experiment. The Crustdata
-> analysis, including its manual-baseline phase, remains preserved as historical research, not a
-> current implementation decision. See
-> [community-onboarding-exa-prototype.md](community-onboarding-exa-prototype.md).
+> **Status update, August 16, 2026:** This document preserves historical research and does not
+> describe the canonical executable experience or approve a provider, production architecture, or
+> public-link processing. The canonical prototype retains a recovered search adapter internally,
+> has a member-confirmed manual fallback, and is provider-neutral in public presentation. Its
+> current privacy, LinkedIn identifier-only, public-link validation, and terminal boundaries are
+> owned by [community-onboarding-exa-prototype.md](community-onboarding-exa-prototype.md).
 
 ## 1. Recommendation
 

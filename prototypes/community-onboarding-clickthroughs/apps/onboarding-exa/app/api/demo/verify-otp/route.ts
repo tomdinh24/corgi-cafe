@@ -25,7 +25,8 @@ export async function POST(request: Request) {
     {
       httpOnly: true,
       sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
+      // Production requests return above, so this development/test-only fixture is never secure.
+      secure: false,
       maxAge: 1800,
       path: "/",
     },
