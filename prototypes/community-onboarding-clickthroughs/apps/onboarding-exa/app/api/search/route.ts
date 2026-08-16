@@ -53,7 +53,9 @@ export async function POST(request: Request) {
   const query =
     `${parsed.data.identity.firstName} ${parsed.data.identity.lastName} ${parsed.data.location} ${parsed.data.seedWorkContext ?? ""}`.trim();
   try {
-    const candidates = await withTimeout((signal) => searchExa(query, signal));
+    const candidates = await withTimeout((signal) =>
+      searchExa(query, parsed.data.identity, signal),
+    );
     return NextResponse.json({
       status: candidates.length ? "draft_ready" : "manual_only",
       candidates,

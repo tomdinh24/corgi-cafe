@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchExa } from "./provider";
 
+const memberIdentity = { firstName: "Member", lastName: "Entered" };
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -48,15 +50,16 @@ describe("Exa People Search boundary", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const candidates = await searchExa("Casey Builder");
+    const candidates = await searchExa("Casey Builder", memberIdentity);
 
     expect(candidates).toEqual([
       expect.objectContaining({
-        firstName: "Casey",
-        lastName: "1",
+        firstName: memberIdentity.firstName,
+        lastName: memberIdentity.lastName,
         title: undefined,
         company: undefined,
         location: undefined,
+        imageUrl: undefined,
         identifierOnly: true,
         mayExtractFacts: false,
       }),
@@ -85,7 +88,7 @@ describe("Exa People Search boundary", () => {
       ),
     );
 
-    const candidates = await searchExa("People");
+    const candidates = await searchExa("People", memberIdentity);
 
     expect(candidates).toHaveLength(10);
     expect(candidates.map((candidate) => candidate.id)).toEqual(
@@ -113,7 +116,7 @@ describe("Exa People Search boundary", () => {
       ),
     );
 
-    const candidates = await searchExa("People");
+    const candidates = await searchExa("People", memberIdentity);
 
     expect(candidates).toHaveLength(2);
     expect(candidates.every((candidate) => !candidate.imageUrl)).toBe(true);
@@ -128,7 +131,7 @@ describe("Exa People Search boundary", () => {
         new Response(JSON.stringify({ results: [] }), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
-    await searchExa("A Person");
+    await searchExa("A Person", memberIdentity);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -142,6 +145,6 @@ describe("Exa People Search boundary", () => {
         }),
       ),
     );
-    await expect(searchExa("A Person")).rejects.toThrow();
+    await expect(searchExa("A Person", memberIdentity)).rejects.toThrow();
   });
 });

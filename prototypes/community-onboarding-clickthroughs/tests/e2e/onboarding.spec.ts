@@ -122,8 +122,8 @@ test("selected candidate goes directly to all four optional public links and edi
   const candidates = [
     {
       id: "linkedin-candidate",
-      firstName: "Casey",
-      lastName: "Builder",
+      firstName: "Provider",
+      lastName: "Identity",
       title: "Forbidden LinkedIn Role",
       company: "Forbidden LinkedIn Company",
       location: "Forbidden LinkedIn Location",
@@ -162,15 +162,19 @@ test("selected candidate goes directly to all four optional public links and edi
   await expect(page.locator(".person-card").first()).not.toContainText(
     "Forbidden LinkedIn Role",
   );
+  await expect(page.locator(".person-card").first()).toContainText(
+    `${identityValues.firstName} ${identityValues.lastName}`,
+  );
+  await expect(page.locator(".person-card").first()).not.toContainText(
+    "Provider Identity",
+  );
   await page.getByRole("radio").first().check();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(
     page.getByRole("heading", { name: "Add public links?" }),
   ).toBeVisible();
-  await expect(page.getByLabel("LinkedIn")).toHaveValue(
-    "https://www.linkedin.com/in/casey-builder",
-  );
+  await expect(page.getByLabel("LinkedIn")).toHaveValue("");
   for (const label of [
     "LinkedIn",
     "Personal or company website",
@@ -192,7 +196,7 @@ test("selected candidate goes directly to all four optional public links and edi
   await expect(page.getByLabel("Role")).toHaveValue(identityValues.role);
   await expect(page.getByLabel("Company or project")).toHaveValue(identityValues.company);
   await expect(page.locator("body")).not.toContainText("Found on linkedin.com");
-  await expect(page.getByText("Added by you · Link only")).toBeVisible();
+  await expect(page.getByText("Added by you · Link only")).toHaveCount(0);
   await page.getByRole("textbox", { name: "Personal or company website", exact: true }).fill("https://new.example.com/work");
   await page.getByRole("button", { name: "Remove GitHub" }).click();
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveCount(0);

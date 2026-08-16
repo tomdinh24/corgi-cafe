@@ -19,7 +19,6 @@ import {
   buildPublicLinks,
   draftFromCandidate,
   emptyDraft,
-  publicLinkKindForUrl,
   recordComparisonEvent,
   type AttributedText,
   type OnboardingPhase,
@@ -211,10 +210,6 @@ export function CorgiOnboarding() {
   const [publicLinkValues, setPublicLinkValues] =
     useState<PublicLinkValues>(EMPTY_LINK_VALUES);
   const [publicLinks, setPublicLinks] = useState<PublicLink[]>([]);
-  const [candidatePrefill, setCandidatePrefill] = useState<{
-    kind: PublicLinkKind;
-    url: string;
-  } | null>(null);
   const [linkErrors, setLinkErrors] = useState<PublicLinkErrors>({});
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
   const [path, setPath] = useState<Path>("");
@@ -280,7 +275,6 @@ export function CorgiOnboarding() {
     setDraft(manualDraft());
     setPublicLinkValues(EMPTY_LINK_VALUES);
     setPublicLinks([]);
-    setCandidatePrefill(null);
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
@@ -364,8 +358,10 @@ export function CorgiOnboarding() {
     event.preventDefault();
     const candidate = candidates.find((item) => item.id === selectedCandidateId);
     if (!candidate) return;
-    setFirstName(candidate.firstName);
-    setLastName(candidate.lastName);
+    if (!candidate.identifierOnly) {
+      setFirstName(candidate.firstName);
+      setLastName(candidate.lastName);
+    }
     setManualProfile(false);
     setDraft(
       draftFromCandidate(candidate, {
@@ -374,24 +370,6 @@ export function CorgiOnboarding() {
         location,
       }),
     );
-    const kind = publicLinkKindForUrl(candidate.profileUrl);
-    setPublicLinkValues((current) => {
-      const next = { ...current };
-      const preserveEditedValue = Boolean(
-        candidatePrefill &&
-          candidatePrefill.kind === kind &&
-          next[kind] !== candidatePrefill.url,
-      );
-      if (
-        candidatePrefill &&
-        next[candidatePrefill.kind] === candidatePrefill.url
-      ) {
-        next[candidatePrefill.kind] = "";
-      }
-      if (!preserveEditedValue) next[kind] = candidate.profileUrl;
-      return next;
-    });
-    setCandidatePrefill({ kind, url: candidate.profileUrl });
     setPublicLinks([]);
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
@@ -422,7 +400,6 @@ export function CorgiOnboarding() {
   const skipPublicLinks = () => {
     setPublicLinkValues(EMPTY_LINK_VALUES);
     setPublicLinks([]);
-    setCandidatePrefill(null);
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
@@ -828,15 +805,21 @@ export function CorgiOnboarding() {
             <ol className="person-list">
               {candidates.slice(0, 3).map((candidate) => {
                 const selected = selectedCandidateId === candidate.id;
-                const name = `${candidate.firstName} ${candidate.lastName}`;
+                const candidateFirstName = candidate.identifierOnly
+                  ? firstName
+                  : candidate.firstName;
+                const candidateLastName = candidate.identifierOnly
+                  ? lastName
+                  : candidate.lastName;
+                const name = `${candidateFirstName} ${candidateLastName}`;
                 const mayShowFacts = candidate.mayExtractFacts && !candidate.identifierOnly;
                 return (
                   <li key={candidate.id}>
                     <label className={`person-card${selected ? " selected" : ""}`}>
                       <input type="radio" name="candidate" value={candidate.id} checked={selected} onChange={() => setSelectedCandidateId(candidate.id)} />
                       <span className="person-avatar" aria-hidden="true">
-                        {candidate.firstName[0]}{candidate.lastName[0]}
-                        {candidate.imageUrl && <img src={candidate.imageUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                        {candidateFirstName[0]}{candidateLastName[0]}
+                        {!candidate.identifierOnly && candidate.imageUrl && <img src={candidate.imageUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true; }} />}
                       </span>
                       <span className="person-details">
                         <strong>{name}</strong>

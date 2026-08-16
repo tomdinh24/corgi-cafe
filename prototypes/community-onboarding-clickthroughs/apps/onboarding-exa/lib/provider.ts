@@ -85,6 +85,7 @@ function currentWork(
 
 export async function searchExa(
   query: string,
+  memberIdentity: { firstName: string; lastName: string },
   signal?: AbortSignal,
 ): Promise<PersonCandidate[]> {
   const body = await exaPost(
@@ -110,8 +111,8 @@ export async function searchExa(
       return [
         {
           id: entity.id,
-          firstName,
-          lastName,
+          firstName: identifierOnly ? memberIdentity.firstName : firstName,
+          lastName: identifierOnly ? memberIdentity.lastName : lastName,
           title: identifierOnly ? undefined : work?.title?.trim() || undefined,
           company: identifierOnly
             ? undefined
@@ -122,7 +123,7 @@ export async function searchExa(
               work?.location?.trim() ||
               undefined,
           profileUrl: result.url,
-          imageUrl: safeImageUrl(result.image),
+          imageUrl: identifierOnly ? undefined : safeImageUrl(result.image),
           sourceHost,
           identifierOnly,
           mayExtractFacts: !identifierOnly,
