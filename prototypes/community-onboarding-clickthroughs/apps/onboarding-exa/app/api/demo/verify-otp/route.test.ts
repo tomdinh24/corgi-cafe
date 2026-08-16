@@ -1,16 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { reserveExaSearches } from "../../../../lib/budget";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("demo OTP verification", () => {
   it("does not mint a replacement session that resets its search budget", async () => {
     const { POST } = await import("./route");
-    const client = `203.0.113.${Math.floor(Math.random() * 200) + 1}`;
     const first = await POST(
       new Request("http://local/api/demo/verify-otp", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-forwarded-for": client,
         },
         body: JSON.stringify({ code: "424242" }),
       }),
@@ -29,7 +29,6 @@ describe("demo OTP verification", () => {
         headers: {
           "content-type": "application/json",
           cookie: `corgi_exa_otp=${token}`,
-          "x-forwarded-for": client,
         },
         body: JSON.stringify({ code: "424242" }),
       }),
@@ -37,5 +36,19 @@ describe("demo OTP verification", () => {
     expect(renewed.status).toBe(200);
     expect(renewed.headers.get("set-cookie")).toBeNull();
     expect(reserveExaSearches(token!, 1)).toBe(false);
+  });
+
+  it("does not issue the fixed local code in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://local/api/demo/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "424242" }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

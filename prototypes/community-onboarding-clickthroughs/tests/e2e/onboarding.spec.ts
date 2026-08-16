@@ -7,12 +7,8 @@ const identityValues = {
   company: "Corgi Labs",
   role: "Member Role",
 };
-let clientSequence = 0;
 
 async function completeIdentity(page: Page) {
-  await page.context().setExtraHTTPHeaders({
-    "x-forwarded-for": `203.0.113.${++clientSequence}`,
-  });
   await page.goto("/start");
   await page.getByLabel("Email").fill("prototype@example.com");
   await page.getByLabel("Email").press("Enter");
