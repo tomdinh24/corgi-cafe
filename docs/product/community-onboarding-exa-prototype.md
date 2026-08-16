@@ -39,10 +39,11 @@ Manual entry, unavailable search, no result, and `None of these` all route to `p
 
 - Search uses only the verified member’s name, broad location, company or project, and role.
 - Candidate results are unconfirmed until the member explicitly selects one. The interface initially renders no more than three and never preselects a candidate.
-- A selected candidate routes to the four optional link fields before profile review: LinkedIn, personal or company website, GitHub, and other social media.
-- All four links may remain blank. Values stay in React memory and are editable or removable during profile review.
+- A selected non-LinkedIn candidate routes to four optional member-provided link fields before profile review: LinkedIn, personal or company website, GitHub, and other social media. All four may remain blank.
+- When the selected candidate is a LinkedIn identifier, the prototype retains that identifier as `found_on_source`, `identifier_only`, and `not_fetched`; it hides the next-step LinkedIn input while retaining the other three optional member-provided fields. The provider-found identifier is reviewable and removable, but not editable as a member-provided value.
+- Member-provided values stay in React memory and are editable or removable during profile review.
 - The public-link screen performs local URL normalization and validation only. It does not retrieve, summarize, enrich, retain, or submit a link to an external service.
-- LinkedIn is always `identifier_only` with `retrievalStatus: not_fetched`. Corgi never fetches a LinkedIn page and never attributes role, company, location, or other facts to LinkedIn.
+- LinkedIn is always `identifier_only` with `retrievalStatus: not_fetched`. Corgi never fetches a LinkedIn page and never attributes role, company, location, or other facts to LinkedIn. A LinkedIn URL in a website or social field is rejected; member-entered LinkedIn remains `member_provided`, while the selected-candidate exception is visibly `found_on_source`.
 - Non-LinkedIn links remain `member_provided` and display `Added by you`. No new production enrichment contract is implied.
 - Imported non-LinkedIn fields remain editable and source-labelled until `Confirm profile`.
 

@@ -499,7 +499,11 @@ export function CorgiOnboarding() {
       return;
     }
     setPublicLinkValues(linkResult.normalized);
-    setPublicLinks(linkResult.links);
+    const links = providerLinkedIn
+      ? [providerLinkedIn, ...linkResult.links]
+      : linkResult.links;
+    PublicLinksSchema.parse(links);
+    setPublicLinks(links);
     setDraft((current) => ({
       ...current,
       role: { ...current.role, confirmed: true },

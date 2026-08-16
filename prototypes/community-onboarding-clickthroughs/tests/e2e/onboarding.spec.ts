@@ -201,6 +201,13 @@ test("selected candidate goes directly to all four optional public links and edi
   await page.getByRole("textbox", { name: "Personal or company website", exact: true }).fill("https://new.example.com/work");
   await page.getByRole("button", { name: "Remove GitHub" }).click();
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveCount(0);
+  await page.getByLabel("Area", { exact: true }).fill("Product");
+  await page.getByLabel("Focus areas").fill("Activation");
+  await page.getByLabel("Can help with").fill("Product strategy");
+  await page.getByRole("button", { name: "Confirm profile" }).click();
+  await expect(page.getByRole("heading", { name: "What would you like to do?" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByText("LinkedIn profile · Link only")).toBeVisible();
   expect(linkedInRequests).toBe(0);
   await expectNoVisibleProviderTreatment(page);
 });
