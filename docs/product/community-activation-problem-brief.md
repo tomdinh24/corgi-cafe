@@ -232,7 +232,7 @@ Eligibility and consent are hard constraints. Relevance is a ranking concern.
 | Awareness | Understand that Corgi can help create a connection during this visit | Communicate the promise immediately after ordering or at pickup without requiring commerce integration |
 | Education | Decide whether the experience is relevant and safe | Explain the value, session-level permission model, visibility, and time-limited presence before signup |
 | Join | Enter with minimal friction | Verify an email address with a one-time passcode, then collect first name, last name, and broad location |
-| Establish context | Provide enough credible background without a long form | Present Crustdata candidates for selection; use LinkedIn, an optional additional URL, and a short manual fallback when confidence is low; never treat an unconfirmed result as profile truth |
+| Establish context | Provide enough credible background without a long form | Present member-confirmed candidate selection with a manual fallback; never treat an unconfirmed result as profile truth. The executable candidate and public-link contract is owned by the [canonical onboarding prototype](./community-onboarding-exa-prototype.md). |
 | Confirm profile | Control what Corgi retains | Build one source-attributed, editable profile and require confirmation before imported fields become durable |
 | Choose | Decide what Corgi should help with next | Offer connect now, private-community interest, or maybe later; only connect now creates a visit-session path |
 | Signal | Provide enough current context for a credible connection | Present inferred intents as removable suggestions, then require explicit confirmation of the final ask, offer, openness, boundaries, and presence |
