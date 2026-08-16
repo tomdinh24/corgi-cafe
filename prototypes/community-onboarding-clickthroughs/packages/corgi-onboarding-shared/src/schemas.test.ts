@@ -4,19 +4,20 @@ import {
   EnrichmentResponseSchema,
   OnboardingInputSchema,
   PersonCandidateSchema,
+  PublicLinksSchema,
   SessionSummarySchema,
 } from "./schemas";
 import { emptyDraft } from "./fixtures";
 
 describe("shared contracts", () => {
-  it("validates onboarding input", () =>
-    expect(
-      OnboardingInputSchema.safeParse({
-        identity: { email: "a@b.com", firstName: "A", lastName: "B" },
-        location: "San Francisco",
-        urls: [],
-      }).success,
-    ).toBe(true));
+  it("validates search input without carrying member links", () => {
+    const result = OnboardingInputSchema.parse({
+      identity: { email: "a@b.com", firstName: "A", lastName: "B" },
+      location: "San Francisco",
+      urls: ["https://linkedin.com/in/a"],
+    });
+    expect(result).not.toHaveProperty("urls");
+  });
   it("accepts honest provider fallback", () =>
     expect(
       EnrichmentResponseSchema.parse({
@@ -64,6 +65,49 @@ describe("shared contracts", () => {
         ...candidate,
         imageUrl: "http://images.example.com/casey.jpg",
       }).success,
+    ).toBe(false);
+  });
+  it("enforces at most one typed link per category and four total", () => {
+    const link = (kind: "linkedin" | "website" | "github" | "social") => ({
+      kind,
+      url:
+        kind === "linkedin"
+          ? "https://linkedin.com/in/casey"
+          : kind === "github"
+            ? "https://github.com/casey"
+            : `https://${kind}.example.com/casey`,
+      use: kind === "linkedin" ? "identifier_only" : "public_context",
+      provenance: "member_provided",
+      retrievalStatus: "not_fetched",
+    });
+    expect(
+      PublicLinksSchema.safeParse([
+        link("linkedin"),
+        link("website"),
+        link("github"),
+        link("social"),
+      ]).success,
+    ).toBe(true);
+    expect(PublicLinksSchema.safeParse([link("website"), link("website")]).success).toBe(false);
+  });
+  it("requires LinkedIn links to remain identifier-only and not fetched", () => {
+    const link = {
+      kind: "linkedin",
+      url: "https://linkedin.com/in/casey",
+      use: "public_context",
+      provenance: "member_provided",
+      retrievalStatus: "not_fetched",
+    };
+    expect(PublicLinksSchema.safeParse([link]).success).toBe(false);
+    expect(
+      PublicLinksSchema.safeParse([
+        { ...link, use: "identifier_only", retrievalStatus: "retrieved" },
+      ]).success,
+    ).toBe(false);
+    expect(
+      PublicLinksSchema.safeParse([
+        { ...link, url: "ftp://linkedin.com/in/casey", use: "identifier_only" },
+      ]).success,
     ).toBe(false);
   });
   it("requires a URL for a sourced field", () =>

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=@corgi/onboarding-exa",
     "dev:exa": "npm run dev --workspace=@corgi/onboarding-exa",
+    "dev:test": "npm run dev:test --workspace=@corgi/onboarding-exa",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",

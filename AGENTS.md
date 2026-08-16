@@ -44,15 +44,15 @@ the broader scope.
 - A centralized Corgi profile may support the in-person experience and a future private community.
   The current private-community branch records interest only; it does not grant membership,
   visibility, or contact permission.
-- The current onboarding prototype uses Exa People Search and a user-confirmed identity candidate.
-  The standalone Manual and AI Web variants have been retired; Exa retains an in-flow manual
-  fallback. This prototype supersedes Crustdata as the only active prototype direction without
-  approving any production provider. The sequence is email verification, separate identity and
-  professional-context fields, a disclosed people-search flow, editable sourced profile
-  confirmation, branch selection, explicit review of suggested discussion topics, permissions, and
-  a `Ready for recommendations` boundary. Matching itself is not part of these prototypes.
-  Suggested intent may begin selected for review, but commercial permissions must remain off until
-  the member explicitly enables them.
+- The canonical executable experience serves the outcome-first Corgi landing at `/` and onboarding
+  at `/start`; see `docs/product/community-onboarding-exa-prototype.md`. Public presentation is
+  provider-neutral. The recovered search adapter remains internal and does not represent production
+  provider approval. Candidate selection precedes four optional, typed public-link fields and an
+  editable sourced profile. Public links are never sent to search or fetched in this prototype;
+  LinkedIn is identifier-only and never supplies profile facts. Manual entry remains available for
+  unavailable search, no result, and rejected candidates. Matching is out of scope. Suggested topics
+  may begin selected, but conversation categories, availability, visibility, expiry, notifications,
+  and all commercial permissions require explicit member choices.
 - Mutual permission is a hard constraint. Relevance never overrides visibility, availability, or
   interaction boundaries. For the MVP, permission is granted through compatible, time-bounded
   introduction sessions rather than per-person connection requests.
@@ -125,3 +125,10 @@ working style, design feedback, or validated cross-project context is relevant:
 3. Load `project_` or `reference_` entries only when they match this repository or task.
 
 Keep project-specific instructions here; do not duplicate the underlying cross-project memory.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

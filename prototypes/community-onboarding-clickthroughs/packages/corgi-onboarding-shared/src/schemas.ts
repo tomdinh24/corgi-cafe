@@ -32,9 +32,77 @@ export const OnboardingInputSchema = z.object({
   }),
   location: z.string().trim().min(2).max(120),
   seedWorkContext: z.string().trim().max(800).optional(),
-  urls: z.array(z.string().url()).max(4).default([]),
   freeText: z.string().trim().max(1200).optional(),
 });
+
+export const PublicLinkKindSchema = z.enum([
+  "linkedin",
+  "website",
+  "github",
+  "social",
+]);
+
+export const PublicLinkSchema = z
+  .object({
+    kind: PublicLinkKindSchema,
+    url: z
+      .string()
+      .url()
+      .max(2048)
+      .refine(
+        (value) => ["http:", "https:"].includes(new URL(value).protocol),
+        "Only HTTP and HTTPS URLs are allowed",
+      ),
+    use: z.enum(["identifier_only", "public_context"]),
+    provenance: z.literal("member_provided"),
+    retrievalStatus: z.literal("not_fetched"),
+  })
+  .superRefine((link, context) => {
+    const parsed = new URL(link.url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (link.kind === "linkedin") {
+      const profilePath = parsed.pathname.replace(/\/+$/, "");
+      if (
+        !["linkedin.com", "lnkd.in"].some(
+          (blocked) => host === blocked || host.endsWith(`.${blocked}`),
+        ) ||
+        !/^\/in\/[^/]+$/i.test(profilePath) ||
+        link.use !== "identifier_only"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "LinkedIn links are identifier-only",
+        });
+      }
+    } else if (link.use !== "public_context") {
+      context.addIssue({
+        code: "custom",
+        message: "Only LinkedIn links may be identifier-only",
+      });
+    }
+    if (
+      link.kind === "github" &&
+      (host !== "github.com" ||
+        parsed.pathname.split("/").filter(Boolean).length !== 1)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "GitHub links must identify a profile",
+      });
+    }
+  });
+
+export const PublicLinksSchema = z
+  .array(PublicLinkSchema)
+  .max(4)
+  .superRefine((links, context) => {
+    if (new Set(links.map((link) => link.kind)).size !== links.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Only one link of each kind is allowed",
+      });
+    }
+  });
 
 export const SourceEvidenceSchema = z.object({
   url: z.string().url(),
@@ -160,6 +228,8 @@ export const SessionSummarySchema = z.object({
 });
 
 export type OnboardingInput = z.infer<typeof OnboardingInputSchema>;
+export type PublicLinkKind = z.infer<typeof PublicLinkKindSchema>;
+export type PublicLink = z.infer<typeof PublicLinkSchema>;
 export type SourceEvidence = z.infer<typeof SourceEvidenceSchema>;
 export type PersonCandidate = z.infer<typeof PersonCandidateSchema>;
 export type ProfileDraft = z.infer<typeof ProfileDraftSchema>;

@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { code?: string };
   if (body.code !== "424242")
     return NextResponse.json(
-      { ok: false, message: "That code does not match. Try 424242." },
+      { ok: false, message: "That code doesn’t match. Try again." },
       { status: 400 },
     );
   const secret = getSessionSecret();

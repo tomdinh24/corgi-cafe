@@ -112,12 +112,15 @@ export async function searchExa(
           id: entity.id,
           firstName,
           lastName,
-          title: work?.title?.trim() || undefined,
-          company: work?.company?.name?.trim() || undefined,
-          location:
-            entity.properties.location?.trim() ||
-            work?.location?.trim() ||
-            undefined,
+          title: identifierOnly ? undefined : work?.title?.trim() || undefined,
+          company: identifierOnly
+            ? undefined
+            : work?.company?.name?.trim() || undefined,
+          location: identifierOnly
+            ? undefined
+            : entity.properties.location?.trim() ||
+              work?.location?.trim() ||
+              undefined,
           profileUrl: result.url,
           imageUrl: safeImageUrl(result.image),
           sourceHost,

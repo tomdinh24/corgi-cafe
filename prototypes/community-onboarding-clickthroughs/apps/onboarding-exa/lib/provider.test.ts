@@ -54,8 +54,9 @@ describe("Exa People Search boundary", () => {
       expect.objectContaining({
         firstName: "Casey",
         lastName: "1",
-        title: "Product Lead",
-        company: "Corgi Labs",
+        title: undefined,
+        company: undefined,
+        location: undefined,
         identifierOnly: true,
         mayExtractFacts: false,
       }),
@@ -68,6 +69,8 @@ describe("Exa People Search boundary", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
       authorization: "Bearer test",
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://api.exa.ai/search");
   });
 
   it("returns at most ten structured candidates in provider order", async () => {

@@ -1,20 +1,7 @@
-# Community Activation Landing Prototype
+# Recovered community activation landing source
 
-This is a standalone, responsive prototype of Corgi's post-order discovery page. It demonstrates
-the marketing narrative and the handoff into centralized onboarding; it does not create accounts,
-collect personal information, call Crustdata, or perform matching.
+This directory preserves the standalone landing prototype that supplied the original Cafe connection scene and tactile component direction. Its CTA now links directly to `/start`; the former five-step handoff modal has been removed.
 
-From this directory, preview it with:
+The canonical responsive implementation, official local logo, metadata, copy deck, and onboarding route now live in the Next.js workspace at [`../community-onboarding-clickthroughs/`](../community-onboarding-clickthroughs/). Run and validate that workspace for product review.
 
-```sh
-python3 -m http.server 4173
-```
-
-Then open `http://localhost:4173/`.
-
-The prototype records interaction events only in `window.corgiPrototypeEvents` and dispatches local
-`corgi:analytics` browser events. No analytics data leaves the browser.
-
-See the [marketing and design handoff](../../docs/product/post-order-discovery-landing-page-handoff.md)
-and [onboarding enrichment proposal](../../docs/product/onboarding-enrichment-proposal.md) for the
-product boundaries behind the prototype.
+This recovered source records interaction events only in `window.corgiPrototypeEvents` and dispatches local `corgi:analytics` browser events. No analytics data leaves the browser.

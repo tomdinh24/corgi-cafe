@@ -1,108 +1,150 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const app = { name: "Exa", url: "http://127.0.0.1:4313" } as const;
+const identityValues = {
+  firstName: "Casey",
+  lastName: "Builder",
+  location: "San Francisco Bay Area",
+  company: "Corgi Labs",
+  role: "Member Role",
+};
 
-async function identity(
-  page: Page,
-  person = {
-    firstName: "Casey",
-    lastName: "Builder",
-    location: "San Francisco Bay Area",
-    company: "Corgi Labs",
-    roleTitle: "Product Lead",
-    publicUrl: "https://example.com/casey-builder",
-  },
-) {
-  await page.goto(app.url);
-  await page.getByRole("button", { name: "Get started" }).click();
+async function completeIdentity(page: Page) {
+  await page.goto("/start");
   await page.getByLabel("Email").fill("prototype@example.com");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Email").press("Enter");
   await page.getByLabel("6-digit code").fill("424242");
-  await page.getByRole("button", { name: "Verify" }).click();
+  await page.getByLabel("6-digit code").press("Enter");
   for (const [label, value] of [
-    ["First name", person.firstName],
-    ["Last name", person.lastName],
-    ["City or region", person.location],
-    ["Company", person.company],
-    ["Role or title", person.roleTitle],
-    ["Public URL", person.publicUrl],
+    ["First name", identityValues.firstName],
+    ["Last name", identityValues.lastName],
+    ["City or region", identityValues.location],
+    ["Company or project", identityValues.company],
+    ["Role or title", identityValues.role],
   ] as const) {
     await page.getByLabel(label).fill(value);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByLabel(label).press("Enter");
   }
+  await expect(
+    page.getByRole("heading", { name: "Find your public profile." }),
+  ).toBeVisible();
 }
 
-async function reachProfile(page: Page) {
-  await identity(page);
-  await page.getByRole("button", { name: "Find my profile" }).click();
+async function enterManualProfile(page: Page) {
+  await completeIdentity(page);
   await page.getByRole("button", { name: "Enter it myself" }).click();
-  await page.getByLabel("Role").fill("Product builder");
-  await page.getByLabel("Company").fill("Corgi Labs");
+  await expect(
+    page.getByRole("heading", { name: "Add public links?" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await fillProfileReview(page);
+}
+
+async function fillProfileReview(page: Page) {
+  await expect(
+    page.getByRole("heading", { name: "Does this sound like you?" }),
+  ).toBeVisible();
   await page.getByLabel("Area", { exact: true }).fill("Product");
   await page.getByLabel("Focus areas").fill("Activation, community");
   await page.getByLabel("Can help with").fill("Product strategy, research");
   await page.getByRole("button", { name: "Confirm profile" }).click();
+  await expect(
+    page.getByRole("heading", { name: "What would you like to do?" }),
+  ).toBeVisible();
+}
+
+async function chooseConnect(page: Page) {
+  await page.getByRole("radio", { name: /Meet someone now/ }).check();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: "What would you like to talk about?" }),
+  ).toBeVisible();
 }
 
 async function finishConnect(page: Page) {
-  await page.getByRole("button", { name: /Connect at Corgi now/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.locator(".check-choice").first().click();
+  await chooseConnect(page);
+  await expect(page.getByRole("checkbox", { name: "Compare notes with another builder" })).toBeChecked();
   await page
     .getByLabel("What would make the conversation useful?")
     .fill("Compare practical activation lessons.");
   await page
-    .getByLabel("What could you share in return?")
-    .fill("Early customer research notes.");
-  await page.getByRole("button", { name: "Set preferences" }).click();
-  const openNow = page.getByLabel("I’m open to an introduction now");
-  await expect(openNow).not.toBeChecked();
-  await openNow.check();
-  await expect(page.getByLabel("Fundraising conversations")).not.toBeChecked();
-  await expect(page.getByLabel("Recruiting conversations")).not.toBeChecked();
-  await expect(page.getByLabel("Sales conversations")).not.toBeChecked();
-  await expect(page.getByLabel("Notify me in this prototype")).not.toBeChecked();
-  await page.getByRole("button", { name: "Review introduction" }).click();
+    .getByLabel("What could you help someone else with?")
+    .fill("Share early customer research notes.");
+  await page.getByRole("button", { name: "Choose conversation types" }).click();
+
+  for (const label of [
+    "Customer or design-partner conversation",
+    "Hiring or opportunities",
+    "Fundraising",
+    "Sales or vendor conversation",
+  ]) {
+    await expect(page.getByRole("checkbox", { name: label })).not.toBeChecked();
+  }
+  await page.getByRole("button", { name: "Set availability" }).click();
+  await expect(page.getByText("Choose at least one conversation type.")).toBeVisible();
+  await page.getByRole("checkbox", { name: "Peer conversation" }).check();
+  await page.getByRole("button", { name: "Set availability" }).click();
+
+  await expect(page.getByRole("radio", { name: /^Now/ })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: /People at Corgi/ })).not.toBeChecked();
+  await expect(page.getByLabel("Notify me in this app")).not.toBeChecked();
+  await page.getByRole("button", { name: "Review" }).click();
+  await expect(page.getByText("Choose when you’re open.")).toBeVisible();
+  await page.getByRole("radio", { name: /^Now/ }).check();
+  await page.getByRole("radio", { name: /People at Corgi/ }).check();
+  await page.getByLabel("Keep me open for").selectOption("60 minutes");
+  await page.getByRole("button", { name: "Review" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Ready for an introduction?" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Start introductions" }).click();
   await expect(
-    page.getByRole("heading", { name: "Ready for recommendations." }),
+    page.getByRole("heading", { name: "You’re open to an introduction." }),
   ).toBeVisible();
   await expect(
-    page.getByText(/has not searched for, ranked, or shown another person/i),
+    page.getByText(/hasn’t searched for, ranked, or shown anyone/i),
   ).toBeVisible();
+  await expect(page.getByText(/There may not be a match/i)).toBeVisible();
 }
 
-test("Exa displays structured people and confirms exactly one", async ({
+async function expectNoVisibleProviderTreatment(page: Page) {
+  await expect(page.locator("body")).not.toContainText(/\bExa\b|comparison|version/i);
+  await expect(page).not.toHaveTitle(/\bExa\b|comparison|version/i);
+}
+
+test("selected candidate goes directly to all four optional public links and editable review", async ({
   page,
 }) => {
-  const longProfileUrl =
-    "https://www.linkedin.com/in/casey-builder-with-a-long-public-profile-path?source=corgi-cafe";
-  const candidates = Array.from({ length: 12 }, (_, index) => ({
-    id: `person-${index + 1}`,
-    firstName: index === 0 ? "Casey" : `Person${index + 1}`,
-    lastName: index === 0 ? "Builder" : "Candidate",
-    title: index === 0 ? "Product Lead" : "Founder",
-    company: index === 0 ? "Corgi Labs" : `Company ${index + 1}`,
-    location: "San Francisco, California",
-    profileUrl:
-      index === 0
-        ? longProfileUrl
-        : `https://example.com/people/person-${index + 1}`,
-    imageUrl:
-      index === 0 ? "https://images.example.com/profile.jpg" : undefined,
-    sourceHost: index === 0 ? "linkedin.com" : "example.com",
-    identifierOnly: index === 0,
-    mayExtractFacts: index !== 0,
-  }));
-  await page.route("https://images.example.com/profile.jpg", (route) =>
-    route.fulfill({
-      contentType: "image/png",
-      body: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-        "base64",
-      ),
-    }),
-  );
+  let linkedInRequests = 0;
+  page.on("request", (request) => {
+    if (/linkedin\.com$/i.test(new URL(request.url()).hostname)) linkedInRequests += 1;
+  });
+  const candidates = [
+    {
+      id: "linkedin-candidate",
+      firstName: "Casey",
+      lastName: "Builder",
+      title: "Forbidden LinkedIn Role",
+      company: "Forbidden LinkedIn Company",
+      location: "Forbidden LinkedIn Location",
+      profileUrl: "https://www.linkedin.com/in/casey-builder",
+      sourceHost: "linkedin.com",
+      identifierOnly: true,
+      mayExtractFacts: false,
+    },
+    {
+      id: "public-candidate",
+      firstName: "Casey",
+      lastName: "Builder",
+      title: "Public Role",
+      company: "Public Company",
+      location: "Oakland",
+      profileUrl: "https://casey.example.com/about",
+      sourceHost: "casey.example.com",
+      identifierOnly: false,
+      mayExtractFacts: true,
+    },
+  ];
   await page.route("**/api/search", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -110,84 +152,163 @@ test("Exa displays structured people and confirms exactly one", async ({
     }),
   );
 
-  await identity(page);
+  await completeIdentity(page);
   await page.getByRole("button", { name: "Find my profile" }).click();
-  await page.getByRole("button", { name: "Search with Exa" }).click();
-
-  const cards = page.locator(".person-card");
-  await expect(cards).toHaveCount(10);
-  await expect(cards.first()).toContainText("Casey Builder");
-  await expect(cards.first()).toContainText("Product Lead · Corgi Labs");
-  await expect(cards.first()).toContainText("LinkedIn profile · Identity only");
-  await expect(cards.first().getByRole("link")).toHaveText(longProfileUrl);
-  const image = cards.first().locator("img");
-  await expect(image).toHaveAttribute(
-    "src",
-    "https://images.example.com/profile.jpg",
-  );
-  await expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
-  await expect(page.getByRole("radio")).toHaveCount(10);
+  await expect(page.getByRole("radio")).toHaveCount(2);
   await expect(page.getByRole("radio").first()).not.toBeChecked();
-  const overflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth -
-      document.documentElement.clientWidth,
+  await expect(page.locator(".person-card").first()).toContainText(
+    "LinkedIn profile · Link only",
   );
-  expect(overflow).toBeLessThanOrEqual(1);
+  await expect(page.locator(".person-card").first()).not.toContainText(
+    "Forbidden LinkedIn Role",
+  );
+  await page.getByRole("radio").first().check();
+  await page.getByRole("button", { name: "Continue" }).click();
 
-  await cards.first().getByRole("radio").check();
-  await page.getByRole("button", { name: "Confirm this profile" }).click();
   await expect(
-    page.getByRole("heading", { name: "Does this sound like you?" }),
+    page.getByRole("heading", { name: "Add public links?" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Role")).toHaveValue("Product Lead");
-  await expect(page.getByLabel("Company")).toHaveValue("Corgi Labs");
+  await expect(page.getByLabel("LinkedIn")).toHaveValue(
+    "https://www.linkedin.com/in/casey-builder",
+  );
+  for (const label of [
+    "LinkedIn",
+    "Personal or company website",
+    "GitHub",
+    "Other social media",
+  ]) {
+    await expect(page.getByLabel(label)).toBeVisible();
+  }
+  await page.getByLabel("Personal or company website").fill("casey.example.com");
+  await page.getByLabel("GitHub").fill("github.com/casey");
+  await page.getByLabel("Other social media").fill("https://social.example.com/@casey");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("radio").first()).toBeChecked();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByLabel("Personal or company website")).toHaveValue("casey.example.com");
+  await expect(page.getByLabel("GitHub")).toHaveValue("github.com/casey");
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByLabel("Role")).toHaveValue(identityValues.role);
+  await expect(page.getByLabel("Company or project")).toHaveValue(identityValues.company);
+  await expect(page.locator("body")).not.toContainText("Found on linkedin.com");
+  await expect(page.getByText("Added by you · Link only")).toBeVisible();
+  await page.getByRole("textbox", { name: "Personal or company website", exact: true }).fill("https://new.example.com/work");
+  await page.getByRole("button", { name: "Remove GitHub" }).click();
+  await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveCount(0);
+  expect(linkedInRequests).toBe(0);
+  await expectNoVisibleProviderTreatment(page);
 });
 
-test("Exa completes connect-now without rendering a match", async ({ page }) => {
-  await reachProfile(page);
-  await finishConnect(page);
+test("blank links skip into manual profile review", async ({ page }) => {
+  await completeIdentity(page);
+  await page.getByRole("button", { name: "Enter it myself" }).click();
+  await expect(page.getByText(/profile you’re creating/i)).toBeVisible();
+  for (const label of ["LinkedIn", "Personal or company website", "GitHub", "Other social media"]) {
+    await expect(page.getByLabel(label)).toHaveValue("");
+  }
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page.getByText("No public links added.")).toBeVisible();
 });
 
-for (const branch of ["Record community interest", "Maybe later"] as const) {
-  test(`Exa ${branch} is truthful and temporary`, async ({ page }) => {
-    await reachProfile(page);
-    await page.getByRole("button", { name: new RegExp(branch) }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Nothing was saved")).toBeVisible();
-    await expect(page.getByText(/did not create a profile/i)).toBeVisible();
+test("public link validation is recoverable and normalizes missing schemes", async ({ page }) => {
+  await completeIdentity(page);
+  await page.getByRole("button", { name: "Enter it myself" }).click();
+  await page.getByLabel("LinkedIn").fill("https://example.com/casey");
+  await page.getByLabel("GitHub").fill("https://github.com/casey/project");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Enter a LinkedIn profile link.")).toBeVisible();
+  await expect(page.getByText("Enter a GitHub profile link.")).toBeVisible();
+  await page.getByLabel("LinkedIn").fill("linkedin.com/in/casey");
+  await page.getByLabel("GitHub").fill("github.com/casey");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("textbox", { name: "LinkedIn", exact: true })).toHaveValue("https://linkedin.com/in/casey");
+  await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveValue("https://github.com/casey");
+});
+
+for (const outcome of ["missing_key", "manual_only"] as const) {
+  test(`profile search ${outcome} truthfully falls back to manual entry`, async ({ page }) => {
+    await page.route("**/api/search", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ status: outcome, candidates: [] }),
+      }),
+    );
+    await completeIdentity(page);
+    await page.getByRole("button", { name: "Find my profile" }).click();
+    await expect(
+      page.getByText(
+        outcome === "missing_key"
+          ? "Profile search isn’t available."
+          : "No profile found.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Enter it myself" }).click();
+    await expect(page.getByRole("heading", { name: "Add public links?" })).toBeVisible();
+    await expectNoVisibleProviderTreatment(page);
   });
 }
 
-test("Exa wrong OTP stays recoverable", async ({ page }) => {
-  await page.goto(app.url);
-  await page.getByRole("button", { name: "Get started" }).click();
-  await page.getByLabel("Email").fill("prototype@example.com");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").fill("111111");
-  await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page.getByText(/does not match/i)).toBeVisible();
+test("none of these remains a manual fallback after candidate results", async ({ page }) => {
+  await page.route("**/api/search", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "draft_ready",
+        candidates: [
+          {
+            id: "other",
+            firstName: "Another",
+            lastName: "Person",
+            profileUrl: "https://another.example.com",
+            sourceHost: "another.example.com",
+            identifierOnly: false,
+            mayExtractFacts: true,
+          },
+        ],
+      }),
+    }),
+  );
+  await completeIdentity(page);
+  await page.getByRole("button", { name: "Find my profile" }).click();
+  await page.getByRole("button", { name: "None of these" }).click();
+  await expect(page.getByText(/profile you’re creating/i)).toBeVisible();
 });
 
-test("@live Exa People Search smoke", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "Live smoke runs once");
-  test.skip(!process.env.EXA_API_KEY, "EXA_API_KEY not configured");
-  await identity(page, {
-    firstName: "Linus",
-    lastName: "Torvalds",
-    location: "Portland, Oregon",
-    company: "Linux Foundation",
-    roleTitle: "Software engineer",
-    publicUrl: "https://github.com/torvalds",
+test("connect flow preserves explicit boundaries and truthful ready state", async ({ page }) => {
+  await enterManualProfile(page);
+  await finishConnect(page);
+  await expectNoVisibleProviderTreatment(page);
+});
+
+for (const branch of ["Hear about the Corgi community", "Maybe later"] as const) {
+  test(`${branch} terminal is truthful`, async ({ page }) => {
+    await enterManualProfile(page);
+    await page.getByRole("radio", { name: new RegExp(branch) }).check();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText(/doesn’t (submit or save|save)/i)).toBeVisible();
   });
+}
+
+test("wrong OTP remains recoverable and Enter submits the form", async ({ page }) => {
+  await page.goto("/start");
+  await page.getByLabel("Email").fill("prototype@example.com");
+  await page.getByLabel("Email").press("Enter");
+  await page.getByLabel("6-digit code").fill("111111");
+  await page.getByLabel("6-digit code").press("Enter");
+  await expect(page.getByText("That code doesn’t match. Try again.")).toBeVisible();
+  await expect(page.getByLabel("6-digit code")).toBeFocused();
+});
+
+test("@live recovered profile search smoke", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "Live smoke runs once");
+  test.skip(!process.env.EXA_API_KEY, "Server search key not configured");
+  await completeIdentity(page);
   await page.getByRole("button", { name: "Find my profile" }).click();
-  await page.getByRole("button", { name: "Search with Exa" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Do you see yourself here?" }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Is one of these you?" })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("radio").first().check();
-  await page.getByRole("button", { name: "Confirm this profile" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Does this sound like you?" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Add public links?" })).toBeVisible();
 });

@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       {
         status: "error",
         candidates: [],
-        message: "Verify the demo code before searching.",
+        message: "Verify your code before searching.",
       },
       { status: 401 },
     );
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       status: "missing_key",
       candidates: [],
       message:
-        "Exa search is unavailable here. You can still add your background yourself.",
+        "Profile search isn’t available. You can still add your background yourself.",
     });
   const body = (await request.json().catch(() => null)) as {
     input?: unknown;
@@ -46,12 +46,12 @@ export async function POST(request: Request) {
       {
         status: "manual_only",
         candidates: [],
-        message: "This walkthrough has reached its two-search limit.",
+        message: "Profile search is unavailable. Add your background yourself.",
       },
       { status: 429 },
     );
   const query =
-    `${parsed.data.identity.firstName} ${parsed.data.identity.lastName} ${parsed.data.location} ${parsed.data.seedWorkContext ?? ""} ${parsed.data.urls.join(" ")}`.trim();
+    `${parsed.data.identity.firstName} ${parsed.data.identity.lastName} ${parsed.data.location} ${parsed.data.seedWorkContext ?? ""}`.trim();
   try {
     const candidates = await withTimeout((signal) => searchExa(query, signal));
     return NextResponse.json({
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       candidates,
       message: candidates.length
         ? undefined
-        : "We did not find a structured person profile to confirm.",
+        : "No profile found. Add your background yourself.",
     });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
@@ -67,8 +67,8 @@ export async function POST(request: Request) {
       status: timedOut ? "timed_out" : "error",
       candidates: [],
       message: timedOut
-        ? "Exa took too long. Add your background yourself instead."
-        : "Exa search did not return a reliable result. Add your background yourself instead.",
+        ? "Profile search took too long. Add your background yourself instead."
+        : "Profile search did not return a reliable result. Add your background yourself instead.",
     });
   }
 }
