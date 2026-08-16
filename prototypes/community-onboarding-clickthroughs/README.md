@@ -29,4 +29,4 @@ npm run build
 npm run test:e2e
 ```
 
-Browser tests use the isolated alternate port `4413`; they never reuse the separately managed preview on `4313`. `npm run test:live` remains opt-in for the recovered search adapter and requires a configured server key. Never use real personal information in this prototype.
+Browser tests use the isolated alternate port `4413`; they never reuse the separately managed preview on `4313`. Ordinary `npm run test:e2e` explicitly excludes `@live`. `npm run test:live` selects only the recovered search-adapter smoke, remains opt-in, and requires a configured server key. Never use real personal information in this prototype.

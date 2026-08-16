@@ -44,6 +44,9 @@ describe("Exa People Search boundary", () => {
     vi.stubEnv("EXA_API_KEY", "test");
     const result = personResult(1, {
       url: "https://linkedin.com/in/casey-builder",
+      title: "Provider-returned identity must not be imported",
+      image: "https://images.example.com/provider-returned.jpg",
+      entities: [],
     });
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ results: [result] }), { status: 200 }),
@@ -56,14 +59,13 @@ describe("Exa People Search boundary", () => {
       expect.objectContaining({
         firstName: memberIdentity.firstName,
         lastName: memberIdentity.lastName,
-        title: undefined,
-        company: undefined,
-        location: undefined,
-        imageUrl: undefined,
         identifierOnly: true,
         mayExtractFacts: false,
       }),
     ]);
+    for (const fact of ["title", "company", "location", "imageUrl"]) {
+      expect(candidates[0]).not.toHaveProperty(fact);
+    }
     const requestBody = JSON.parse(
       String(fetchMock.mock.calls[0]?.[1]?.body),
     ) as Record<string, unknown>;
@@ -74,6 +76,28 @@ describe("Exa People Search boundary", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://api.exa.ai/search");
+  });
+
+  it("does not expose non-profile LinkedIn results as member candidates", async () => {
+    vi.stubEnv("EXA_API_KEY", "test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            results: [
+              personResult(1, {
+                url: "https://linkedin.com/company/example",
+                entities: [],
+              }),
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await expect(searchExa("Example", memberIdentity)).resolves.toEqual([]);
   });
 
   it("returns at most ten structured candidates in provider order", async () => {

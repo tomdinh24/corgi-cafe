@@ -121,9 +121,29 @@ describe("shared contracts", () => {
     ).toBe(false);
     expect(
       PublicLinksSchema.safeParse([
+        {
+          ...link,
+          kind: "social",
+          url: "https://github.com/casey",
+          use: "public_context",
+        },
+      ]).success,
+    ).toBe(false);
+    expect(
+      PublicLinksSchema.safeParse([
         { ...link, use: "identifier_only", provenance: "found_on_source" },
       ]).success,
     ).toBe(true);
+    expect(
+      PublicLinksSchema.safeParse([
+        {
+          ...link,
+          url: "https://linkedin.com/company/example",
+          use: "identifier_only",
+          provenance: "found_on_source",
+        },
+      ]).success,
+    ).toBe(false);
     expect(
       PublicLinksSchema.safeParse([
         {

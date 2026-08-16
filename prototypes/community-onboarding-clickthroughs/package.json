@@ -9,7 +9,7 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --grep-invert @live",
     "test:live": "dotenv -e apps/onboarding-exa/.env.local -- playwright test --grep @live"
   },
   "devDependencies": {

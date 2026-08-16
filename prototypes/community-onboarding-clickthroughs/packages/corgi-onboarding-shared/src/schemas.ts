@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { namedPlatformForUrl, namedPlatformLabel } from "./platforms";
 
 export const AttributionSchema = z.enum([
   "entered_by_you",
@@ -60,15 +61,27 @@ export const PublicLinkSchema = z
   .superRefine((link, context) => {
     const parsed = new URL(link.url);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-    const isLinkedInHost = ["linkedin.com", "lnkd.in"].some(
-      (blocked) => host === blocked || host.endsWith(`.${blocked}`),
-    );
+    const namedPlatform = namedPlatformForUrl(link.url);
+    const isLinkedInHost = namedPlatform === "linkedin";
+    if (namedPlatform && namedPlatform !== link.kind) {
+      const label = namedPlatformLabel(namedPlatform);
+      context.addIssue({
+        code: "custom",
+        message: `${label} profile links belong in the ${label} field`,
+      });
+    }
     if (link.kind === "linkedin") {
       const profilePath = parsed.pathname.replace(/\/+$/, "");
+      const directProfile =
+        (host === "linkedin.com" || host.endsWith(".linkedin.com")) &&
+        /^\/in\/[^/]+$/i.test(profilePath);
+      const providerShortLink =
+        link.provenance === "found_on_source" &&
+        host === "lnkd.in" &&
+        /^\/[^/]+$/.test(profilePath);
       if (
         !isLinkedInHost ||
-        (link.provenance !== "found_on_source" &&
-          !/^\/in\/[^/]+$/i.test(profilePath)) ||
+        (!directProfile && !providerShortLink) ||
         link.use !== "identifier_only"
       ) {
         context.addIssue({
@@ -76,11 +89,6 @@ export const PublicLinkSchema = z
           message: "LinkedIn links are identifier-only",
         });
       }
-    } else if (isLinkedInHost) {
-      context.addIssue({
-        code: "custom",
-        message: "LinkedIn profile links belong in the LinkedIn field",
-      });
     } else if (
       link.use !== "public_context" ||
       link.provenance !== "member_provided"

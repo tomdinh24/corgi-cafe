@@ -47,9 +47,11 @@ the broader scope.
 - The canonical executable experience serves the outcome-first Corgi landing at `/` and onboarding
   at `/start`; see `docs/product/community-onboarding-exa-prototype.md`. Public presentation is
   provider-neutral. The recovered search adapter remains internal and does not represent production
-  provider approval. Candidate selection precedes four optional, typed public-link fields and an
-  editable sourced profile. Public links are never sent to search or fetched in this prototype;
-  LinkedIn is identifier-only and never supplies profile facts. Manual entry remains available for
+  provider approval. Candidate selection precedes typed optional public-link fields and an editable
+  sourced profile. A provider-found LinkedIn identifier is retained with truthful data provenance
+  and hides the duplicate member-entry field; otherwise all four fields remain available. Public
+  links are never sent to search or fetched in this prototype; LinkedIn is identifier-only and never
+  supplies profile facts. Manual entry remains available for
   unavailable search, no result, and rejected candidates. Matching is out of scope. Suggested topics
   may begin selected, but conversation categories, availability, visibility, expiry, notifications,
   and all commercial permissions require explicit member choices.

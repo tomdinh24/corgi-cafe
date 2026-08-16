@@ -43,8 +43,10 @@ Manual entry, unavailable search, no result, and `None of these` all route to `p
 - When the selected candidate is a LinkedIn identifier, the prototype retains that identifier as `found_on_source`, `identifier_only`, and `not_fetched`; it hides the next-step LinkedIn input while retaining the other three optional member-provided fields. The provider-found identifier is reviewable and removable, but not editable as a member-provided value.
 - Member-provided values stay in React memory and are editable or removable during profile review.
 - The public-link screen performs local URL normalization and validation only. It does not retrieve, summarize, enrich, retain, or submit a link to an external service.
-- LinkedIn is always `identifier_only` with `retrievalStatus: not_fetched`. Corgi never fetches a LinkedIn page and never attributes role, company, location, or other facts to LinkedIn. A LinkedIn URL in a website or social field is rejected; member-entered LinkedIn remains `member_provided`, while the selected-candidate exception is visibly `found_on_source`.
-- Non-LinkedIn links remain `member_provided` and display `Added by you`. No new production enrichment contract is implied.
+- LinkedIn is always `identifier_only` with `retrievalStatus: not_fetched`. Corgi never fetches a LinkedIn page and never attributes role, company, location, image, or other facts to LinkedIn. Member-entered LinkedIn remains `member_provided`, while the selected-candidate exception is stored as `found_on_source`.
+- The LinkedIn review treatment remains the same neutral `LinkedIn profile · Link only` for provider-found and member-provided identifiers. Provenance is retained in data, not exposed as a visual provider distinction.
+- Every named-platform field accepts only that platform’s profile domain. A recognized named-platform URL pasted into another named or generic field receives a field-level error directing the member to the matching field; the prototype never redirects or silently reclassifies it. Personal/company website and other social remain generic for URLs that do not belong to a named platform.
+- Non-LinkedIn links remain `member_provided`; generic values display `Added by you`. No new production enrichment contract is implied.
 - Imported non-LinkedIn fields remain editable and source-labelled until `Confirm profile`.
 
 ## Permission and terminal boundaries
@@ -65,6 +67,8 @@ npm test
 npm run build
 npm run test:e2e
 ```
+
+The ordinary `test:e2e` command explicitly excludes `@live`. The separate `npm run test:live` command selects only `@live` and is the sole opt-in path for the recovered provider smoke, so an exported provider key cannot activate live calls during normal tests.
 
 The local OTP fixture is documented for evaluators in the workspace README and is not rendered in public UI copy.
 

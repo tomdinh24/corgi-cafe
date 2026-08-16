@@ -40,7 +40,7 @@ const ExaResultSchema = z.object({
   results: z
     .array(
       z.object({
-        id: z.string().optional(),
+        id: z.string().max(240).optional(),
         url: z.string().url(),
         title: z.string().max(180).nullish(),
         image: z.string().max(2048).nullish(),
@@ -83,6 +83,15 @@ function currentWork(
   return history.find((item) => item.dates?.to == null) ?? history[0];
 }
 
+function isLinkedInProfileIdentifier(value: string): boolean {
+  if (!isLinkedInUrl(value)) return false;
+  const parsed = new URL(value);
+  const host = normalizeHost(value);
+  const path = parsed.pathname.replace(/\/+$/, "");
+  if (host === "lnkd.in") return /^\/[^/]+$/.test(path);
+  return /^\/in\/[^/]+$/i.test(path);
+}
+
 export async function searchExa(
   query: string,
   memberIdentity: { firstName: string; lastName: string },
@@ -100,33 +109,45 @@ export async function searchExa(
   );
   const parsed = ExaResultSchema.parse(body);
   return parsed.results
-    .flatMap((result) => {
+    .flatMap<PersonCandidate>((result, index) => {
+      const sourceHost = normalizeHost(result.url);
+      if (!sourceHost) return [];
+      const identifierOnly = isLinkedInUrl(result.url);
+      if (identifierOnly) {
+        if (!isLinkedInProfileIdentifier(result.url)) return [];
+        return [
+          {
+            id: result.id?.trim() || `linkedin-result-${index + 1}`,
+            firstName: memberIdentity.firstName,
+            lastName: memberIdentity.lastName,
+            profileUrl: result.url,
+            sourceHost,
+            identifierOnly: true,
+            mayExtractFacts: false,
+          } satisfies PersonCandidate,
+        ];
+      }
       const entity = result.entities.find((item) => item.type === "person");
       const firstName = entity?.properties.firstName?.trim();
       const lastName = entity?.properties.lastName?.trim();
-      const sourceHost = normalizeHost(result.url);
-      if (!entity || !firstName || !lastName || !sourceHost) return [];
+      if (!entity || !firstName || !lastName) return [];
       const work = currentWork(entity.properties.workHistory);
-      const identifierOnly = isLinkedInUrl(result.url);
       return [
         {
           id: entity.id,
-          firstName: identifierOnly ? memberIdentity.firstName : firstName,
-          lastName: identifierOnly ? memberIdentity.lastName : lastName,
-          title: identifierOnly ? undefined : work?.title?.trim() || undefined,
-          company: identifierOnly
-            ? undefined
-            : work?.company?.name?.trim() || undefined,
-          location: identifierOnly
-            ? undefined
-            : entity.properties.location?.trim() ||
-              work?.location?.trim() ||
-              undefined,
+          firstName,
+          lastName,
+          title: work?.title?.trim() || undefined,
+          company: work?.company?.name?.trim() || undefined,
+          location:
+            entity.properties.location?.trim() ||
+            work?.location?.trim() ||
+            undefined,
           profileUrl: result.url,
-          imageUrl: identifierOnly ? undefined : safeImageUrl(result.image),
+          imageUrl: safeImageUrl(result.image),
           sourceHost,
-          identifierOnly,
-          mayExtractFacts: !identifierOnly,
+          identifierOnly: false,
+          mayExtractFacts: true,
         } satisfies PersonCandidate,
       ];
     })

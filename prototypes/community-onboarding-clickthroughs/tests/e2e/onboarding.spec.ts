@@ -112,7 +112,7 @@ async function expectNoVisibleProviderTreatment(page: Page) {
   await expect(page).not.toHaveTitle(/\bExa\b|comparison|version/i);
 }
 
-test("selected candidate goes directly to all four optional public links and editable review", async ({
+test("provider-found LinkedIn remains identifier-only while the other links stay editable", async ({
   page,
 }) => {
   let linkedInRequests = 0;
@@ -229,13 +229,16 @@ test("public link validation is recoverable and normalizes missing schemes", asy
   await page.getByLabel("LinkedIn").fill("https://example.com/casey");
   await page.getByLabel("GitHub").fill("https://github.com/casey/project");
   await page.getByLabel("Personal or company website").fill("https://linkedin.com/in/casey");
+  await page.getByLabel("Other social media").fill("https://github.com/casey");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Enter a LinkedIn profile link.")).toBeVisible();
   await expect(page.getByText("Enter a GitHub profile link.")).toBeVisible();
   await expect(page.getByText("Add LinkedIn profile links in the LinkedIn field.")).toBeVisible();
+  await expect(page.getByText("Add GitHub profile links in the GitHub field.")).toBeVisible();
   await page.getByLabel("LinkedIn").fill("linkedin.com/in/casey");
   await page.getByLabel("GitHub").fill("github.com/casey");
   await page.getByLabel("Personal or company website").fill("casey.example.com");
+  await page.getByLabel("Other social media").fill("social.example.com/@casey");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("textbox", { name: "LinkedIn", exact: true })).toHaveValue("https://linkedin.com/in/casey");
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveValue("https://github.com/casey");

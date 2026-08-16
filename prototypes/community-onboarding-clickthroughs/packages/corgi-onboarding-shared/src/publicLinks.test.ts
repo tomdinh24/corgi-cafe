@@ -3,7 +3,6 @@ import {
   EMPTY_PUBLIC_LINKS,
   buildPublicLinks,
   normalizePublicUrl,
-  publicLinkKindForUrl,
   validatePublicLink,
 } from "./publicLinks";
 
@@ -45,6 +44,12 @@ describe("member-provided public links", () => {
     expect(
       validatePublicLink("social", "https://lnkd.in/casey").error,
     ).toBe("Add LinkedIn profile links in the LinkedIn field.");
+    expect(
+      validatePublicLink("website", "https://github.com/casey").error,
+    ).toBe("Add GitHub profile links in the GitHub field.");
+    expect(
+      validatePublicLink("linkedin", "https://github.com/casey").error,
+    ).toBe("Add GitHub profile links in the GitHub field.");
   });
 
   it("rejects non-public or non-web values", () => {
@@ -57,11 +62,5 @@ describe("member-provided public links", () => {
     expect(validatePublicLink("website", "javascript:alert(1)").error).toMatch(
       /full public link/i,
     );
-  });
-
-  it("places an explicitly selected candidate link in the appropriate field", () => {
-    expect(publicLinkKindForUrl("https://linkedin.com/in/casey")).toBe("linkedin");
-    expect(publicLinkKindForUrl("https://github.com/casey")).toBe("github");
-    expect(publicLinkKindForUrl("https://casey.example.com")).toBe("website");
   });
 });

@@ -1,4 +1,8 @@
 import {
+  namedPlatformForUrl,
+  namedPlatformLabel,
+} from "./platforms";
+import {
   PublicLinksSchema,
   type PublicLink,
   type PublicLinkKind,
@@ -13,16 +17,6 @@ function normalizeHost(input: string): string | null {
   } catch {
     return null;
   }
-}
-
-function isLinkedInUrl(input: string): boolean {
-  const host = normalizeHost(input);
-  return Boolean(
-    host &&
-      ["linkedin.com", "lnkd.in"].some(
-        (blocked) => host === blocked || host.endsWith(`.${blocked}`),
-      ),
-  );
 }
 
 export type PublicLinkValues = Record<PublicLinkKind, string>;
@@ -63,9 +57,13 @@ export function normalizePublicUrl(value: string): string | null {
 }
 
 function isLinkedInProfile(value: string): boolean {
-  if (!isLinkedInUrl(value)) return false;
+  const host = normalizeHost(value);
   const path = new URL(value).pathname.replace(/\/+$/, "");
-  return /^\/in\/[^/]+$/i.test(path);
+  return Boolean(
+    host &&
+      (host === "linkedin.com" || host.endsWith(".linkedin.com")) &&
+      /^\/in\/[^/]+$/i.test(path),
+  );
 }
 
 function isGitHubProfile(value: string): boolean {
@@ -82,10 +80,12 @@ export function validatePublicLink(
   if (!value.trim()) return { normalized: "" };
   const normalized = normalizePublicUrl(value);
   if (!normalized) return { normalized: value, error: URL_ERROR };
-  if (kind !== "linkedin" && isLinkedInUrl(normalized)) {
+  const namedPlatform = namedPlatformForUrl(normalized);
+  if (namedPlatform && namedPlatform !== kind) {
+    const label = namedPlatformLabel(namedPlatform);
     return {
       normalized,
-      error: "Add LinkedIn profile links in the LinkedIn field.",
+      error: `Add ${label} profile links in the ${label} field.`,
     };
   }
   if (kind === "linkedin" && !isLinkedInProfile(normalized)) {
@@ -123,10 +123,4 @@ export function buildPublicLinks(values: PublicLinkValues): {
   });
   if (!Object.keys(errors).length) PublicLinksSchema.parse(links);
   return { links, normalized, errors };
-}
-
-export function publicLinkKindForUrl(value: string): PublicLinkKind {
-  if (isLinkedInUrl(value)) return "linkedin";
-  if (normalizeHost(value) === "github.com") return "github";
-  return "website";
 }
