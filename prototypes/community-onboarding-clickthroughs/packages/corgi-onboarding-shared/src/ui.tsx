@@ -352,12 +352,12 @@ export function SourceBadge({
       ),
   );
   const text =
-    kind === "entered"
+    kind === "identifier" || linkedInHost
+      ? "LinkedIn profile · Link only"
+      : kind === "entered"
       ? "Added by you"
       : kind === "found"
-        ? linkedInHost
-          ? "LinkedIn profile · Link only"
-          : `Found on ${host ?? "a public page"}`
+        ? `Found on ${host ?? "a public page"}`
         : kind === "edited"
           ? "Edited by you"
           : kind === "identifier"

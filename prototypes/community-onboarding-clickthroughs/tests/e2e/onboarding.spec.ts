@@ -7,8 +7,12 @@ const identityValues = {
   company: "Corgi Labs",
   role: "Member Role",
 };
+let clientSequence = 0;
 
 async function completeIdentity(page: Page) {
+  await page.context().setExtraHTTPHeaders({
+    "x-forwarded-for": `203.0.113.${++clientSequence}`,
+  });
   await page.goto("/start");
   await page.getByLabel("Email").fill("prototype@example.com");
   await page.getByLabel("Email").press("Enter");
@@ -223,6 +227,23 @@ test("blank links skip into manual profile review", async ({ page }) => {
   await expect(page.getByText("No public links added.")).toBeVisible();
 });
 
+test("manual link entries survive returning to profile lookup", async ({ page }) => {
+  await completeIdentity(page);
+  await page.getByRole("button", { name: "Enter it myself" }).click();
+  await page.getByLabel("LinkedIn").fill("linkedin.com/in/casey-builder");
+  await page
+    .getByLabel("Personal or company website")
+    .fill("casey.example.com");
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Enter it myself" }).click();
+  await expect(page.getByLabel("LinkedIn")).toHaveValue(
+    "linkedin.com/in/casey-builder",
+  );
+  await expect(page.getByLabel("Personal or company website")).toHaveValue(
+    "casey.example.com",
+  );
+});
+
 test("public link validation is recoverable and normalizes missing schemes", async ({ page }) => {
   await completeIdentity(page);
   await page.getByRole("button", { name: "Enter it myself" }).click();
@@ -242,6 +263,7 @@ test("public link validation is recoverable and normalizes missing schemes", asy
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("textbox", { name: "LinkedIn", exact: true })).toHaveValue("https://linkedin.com/in/casey");
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveValue("https://github.com/casey");
+  await expect(page.getByText("LinkedIn profile · Link only")).toBeVisible();
 });
 
 for (const outcome of ["missing_key", "manual_only"] as const) {

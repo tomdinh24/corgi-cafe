@@ -273,14 +273,17 @@ export function CorgiOnboarding() {
   };
 
   const continueManually = (outcome?: "manual" | "none") => {
+    const returningToManualDraft = manualProfile;
     setManualProfile(true);
     setCandidates([]);
     setSelectedCandidateId("");
-    setDraft(manualDraft());
-    setPublicLinkValues(EMPTY_LINK_VALUES);
-    setPublicLinks([]);
-    setProviderLinkedIn(null);
-    setLinkErrors({});
+    if (!returningToManualDraft) {
+      setDraft(manualDraft());
+      setPublicLinkValues(EMPTY_LINK_VALUES);
+      setPublicLinks([]);
+      setProviderLinkedIn(null);
+      setLinkErrors({});
+    }
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
       outcome: outcome ?? "manual",
