@@ -6,7 +6,7 @@
 **Audience:** Corgi Cafe Tech Ops  
 **Date:** August 15, 2026  
 **Phase:** Problem definition and activation scope; not a PRD  
-**Product review:** Standing Product Lead approved for human product review
+**Product review:** Standing Product Lead approved the updated framing for human product acceptance
 
 ---
 
@@ -18,7 +18,7 @@ This brief frames the opportunity as:
 
 > Help connection-seeking Corgi Cafe visitors discover and meet a relevant community member when their current needs, offers, and openness are compatible.
 
-The intended user outcome is one mutually accepted, useful, in-person conversation during the current Cafe visit. The business hypothesis is that useful encounters make Corgi feel like a trusted resource, increasing the likelihood that members return and engage with the community again.
+The intended user outcome is one relevant, useful, in-person conversation during the current Cafe visit. Both participants must have explicitly opted into a compatible, time-bounded introduction session before Corgi recommends them to one another. The business hypothesis is that useful encounters make Corgi feel like a trusted resource, increasing the likelihood that members return and engage with the community again.
 
 The first product is not a professional directory, social feed, event platform, ordering replacement, or general-purpose networking app. It is an activation layer for people who are physically at Corgi and explicitly want to connect now.
 
@@ -42,7 +42,7 @@ Increase meaningful engagement with the Corgi community and establish Corgi as a
 
 ### Product objective
 
-Increase the share of connection-seeking Cafe visitors who have one mutually accepted, useful conversation during the same visit.
+Increase the share of connection-seeking Cafe visitors who have one relevant, useful conversation during the same visit.
 
 ### User outcome
 
@@ -55,9 +55,7 @@ Physical presence at Corgi
         +
 Explicit need, offer, and openness
         ↓
-Credible compatible person surfaced
-        ↓
-Mutual consent to connect
+Mutually eligible introduction surfaced
         ↓
 Useful in-person conversation
         ↓
@@ -98,8 +96,8 @@ Only the outcome through “useful in-person conversation” defines first-visit
 - Relevant people are present often enough to support useful matching.
 - Visitors cannot already solve the problem through direct conversation, staff, events, or existing networks.
 - People are willing to disclose their needs, offers, and availability in a Cafe context.
-- A digital request feels safer and easier than an in-person approach.
-- Visitors will remain available long enough for a request to be accepted and a meeting to occur.
+- Session-level permission and a simultaneous introduction feel safer and easier than an in-person approach or individual connection request.
+- Visitors will remain available long enough to see an introduction and meet.
 - A useful conversation increases return behavior or broader Corgi engagement.
 
 ### 3.3 Research limitations
@@ -120,9 +118,9 @@ The current context suggests at least five different failure modes. They should 
 
 1. **Relevance legibility:** The visitor cannot determine who has applicable experience, needs, or interests.
 2. **Social permission:** The visitor cannot tell who is open to being approached or for which interaction types.
-3. **Initiation friction:** Even after finding someone relevant, the visitor lacks a comfortable opening or mutually understood reason to talk.
+3. **Initiation friction:** Even after finding someone relevant, the visitor lacks a comfortable opening or mutually understood reason to talk. Corgi can reduce this friction by acting as a host and introducing two eligible people simultaneously.
 4. **Temporal availability:** A relevant member may exist in the community but may not be present, available, or staying long enough to connect.
-5. **Trust and safety:** A visitor may hesitate to share information or accept a request without credible identity, clear boundaries, and control over visibility.
+5. **Trust and safety:** A visitor may hesitate to share information or act on an introduction without credible identity, clear boundaries, and control over visibility.
 
 The recommended first design hypothesis is **relevance legibility**: explicit intent and contextual explanations will help a visitor identify a person worth meeting more confidently than physical observation alone. Mutual permission remains a non-negotiable constraint, and the demo should still expose initiation, availability, and trust risks. Tech Ops should accept or change this starting bet before the PRD.
 
@@ -152,7 +150,7 @@ Personalization should use four independent dimensions:
 1. **Community history:** first visit, returning visitor, regular, prior event participant.
 2. **Background:** role, functional area, company or project, stage, relevant experience.
 3. **Current intent:** current need, current offer, specific or exploratory goal.
-4. **Openness:** interaction types accepted now, strength threshold, and current availability.
+4. **Openness:** availability now or later, interaction types permitted, strength threshold, and current session expiration.
 
 “Risk-taker” and “builder” are useful brand identities, but too broad to drive matching or product eligibility.
 
@@ -163,7 +161,7 @@ Personalization should use four independent dimensions:
 | Founder | Customers or design partners; hiring; fundraising guidance; partnerships; tactical advice; founder peers | Domain expertise; product knowledge; lessons from building; introductions; startup opportunities | Company stage, industry, current priority, and whether fundraising or selling is permitted |
 | Startup operator | Role-specific advice; hiring; customer or partner access where relevant; benchmarks; career development; peers | Functional playbooks; execution experience; candidate referrals; partner or vendor knowledge | Functional area must be captured: product, engineering, GTM, finance, talent, operations, or another specialty |
 | Investor | Thesis-aligned founders; quality deal flow; co-investors; market intelligence; founder relationships; LP relationships for fund managers | Capital; feedback; pattern recognition; customer and talent introductions; portfolio support | Distinguish angel, scout, investment-team member, partner, and fund manager; not every investor is raising from LPs or accepting pitches |
-| Job-seeking state | Relevant opportunities; insider context; mentorship; work feedback; referrals; peers | Skills; project help; candidate or domain knowledge; future community contribution | Model this as a temporary intent, not a permanent identity; requests must respect whether others are open to recruiting conversations |
+| Job-seeking state | Relevant opportunities; insider context; mentorship; work feedback; referrals; peers | Skills; project help; candidate or domain knowledge; future community contribution | Model this as a temporary intent, not a permanent identity; introductions must respect whether both people permit recruiting conversations |
 
 ### Shared jobs to be done
 
@@ -190,7 +188,7 @@ Role informs context; intent drives activation.
 - **Background:** enough professional context to establish relevance and credibility.
 - **Ask:** what would be useful during this visit.
 - **Offer:** what others may come to them for.
-- **Openness:** which interaction types they accept now.
+- **Openness:** which interaction types they permit Corgi to facilitate during the current session.
 - **Presence:** whether they are currently at Corgi and until when.
 
 None of these social signals should be inferred from drink orders, visit timestamps, or loyalty behavior.
@@ -232,13 +230,16 @@ Eligibility and consent are hard constraints. Relevance is a ranking concern.
 | Stage | Visitor need | Required product behavior |
 |---|---|---|
 | Awareness | Understand that Corgi can help create a connection during this visit | Communicate the promise immediately after ordering or at pickup without requiring commerce integration |
-| Education | Decide whether the experience is relevant and safe | Explain the value, mutual-consent model, visibility, and time-limited presence before signup |
-| Join | Enter with minimal friction | Create or access a standalone account; do not rebuild ordering or loyalty |
-| Signal | Provide enough context for a credible connection | Capture background, current ask, offer, openness, and presence explicitly |
-| Understand | Evaluate a small number of people confidently | Present compatible, present members and explain why each match is relevant and permitted |
-| Request | Express interest without creating social pressure | Send one private connection request tied to the stated reason |
-| Consent | Accept or decline safely | Let the recipient respond privately without exposing a decline or enabling an unapproved approach |
-| Meet | Begin the real-world interaction | Give both people enough shared context to recognize one another and start the conversation |
+| Education | Decide whether the experience is relevant and safe | Explain the value, session-level permission model, visibility, and time-limited presence before signup |
+| Join | Enter with minimal friction | Verify an email address with a one-time passcode, then collect first name, last name, and broad location |
+| Establish context | Provide enough credible background without a long form | Present Crustdata candidates for selection; use LinkedIn, an optional additional URL, and a short manual fallback when confidence is low; never treat an unconfirmed result as profile truth |
+| Confirm profile | Control what Corgi retains | Build one source-attributed, editable profile and require confirmation before imported fields become durable |
+| Choose | Decide what Corgi should help with next | Offer connect now, private-community interest, or maybe later; only connect now creates a visit-session path |
+| Signal | Provide enough current context for a credible connection | Present inferred intents as removable suggestions, then require explicit confirmation of the final ask, offer, openness, boundaries, and presence |
+| Become available | Authorize appropriate introductions without approving people one by one | Start a time-bounded session with explicit availability, interaction boundaries, and match-strength threshold |
+| Understand | Evaluate a recommended introduction confidently | Notify both eligible members simultaneously and explain why the introduction is relevant and permitted |
+| Respond | Preserve control without creating a formal networking workflow | Let either member skip the active introduction, delay it briefly, pause introductions, block, or report; a skip privately deactivates the introduction for both without attributing the decision |
+| Meet | Begin the real-world interaction | Give both people enough shared context to recognize one another and start the conversation without requiring a connection request |
 | Validate | Determine whether activation occurred | Ask whether they met and whether the conversation was useful |
 
 ### Awareness entry points
@@ -257,13 +258,13 @@ The landing page is responsible for education before account creation. Integrati
 
 1. **Intent first:** Personalize around what is useful today, not a permanent persona label.
 2. **People only:** The initial activation layer connects members to members, not events, content, or services.
-3. **Mutual permission:** Relevance never overrides openness or consent.
+3. **Mutual permission:** Session-level opt-in, compatible boundaries, and current availability are required before Corgi facilitates an introduction. Relevance never overrides them.
 4. **Explain the connection:** Every recommendation must communicate why the interaction could be useful and permitted.
 5. **Ask and offer:** Represent contribution as well as need so the community does not become purely extractive.
 6. **IRL completion:** Digital activity is a means to a real conversation, not the final outcome.
 7. **Quality over volume:** An honest empty state is better than a weak or socially risky match.
 8. **Respect focus:** Visitors who are unavailable or uninterested should remain invisible to connection seekers.
-9. **Trust before growth:** Prevent unwanted fundraising, recruiting, and sales behavior before optimizing request volume.
+9. **Trust before growth:** Prevent unwanted fundraising, recruiting, and sales behavior before optimizing introduction volume.
 
 ---
 
@@ -272,12 +273,15 @@ The landing page is responsible for education before account creation. Integrati
 ### In scope
 
 - Everyday Cafe visits rather than scheduled-event networking.
-- First-time users of a standalone connection product, including new and returning Cafe visitors.
+- First-time users of a centralized Corgi profile and connection product, including new and returning Cafe visitors.
 - Founder, startup-operator, and investor contexts.
 - Job seeking as a temporary intent available to relevant members.
 - Explicit background, ask, offer, openness, and presence.
+- User-confirmed, sourced profile enrichment with URL and short manual fallbacks.
+- A post-enrichment choice to connect now, record private-community interest, or maybe later.
 - A small set of personalized people recommendations with understandable reasons.
-- Mutual digital consent before an in-person connection.
+- Time-bounded, session-level permission for Corgi to facilitate compatible in-person introductions.
+- Simultaneous introduction recommendations with skip, delay, pause, block, and report controls.
 - Post-conversation confirmation and usefulness feedback.
 - Synthetic members, visits, and connection states for the demonstration.
 
@@ -294,6 +298,9 @@ The landing page is responsible for education before account creation. Integrati
 - Background location tracking or exact seat visibility.
 - Networking for visitors who are focused, unavailable, or uninterested.
 - Proving real-world network liquidity with synthetic data.
+- Silent identity resolution from people-search results.
+- Private-community application, vetting, approval, directory visibility, or contact operations.
+- Production use of a people-data provider before legal, privacy, security, data-provenance, and procurement review.
 
 ---
 
@@ -332,17 +339,18 @@ Represents an eligible connection opportunity.
 - current availability;
 - applicable interaction boundaries.
 
-### `Connection`
+### `Introduction`
 
-Represents the mutual-consent and outcome lifecycle.
+Represents a facilitated recommendation between two mutually eligible members and its outcome lifecycle.
 
 ```text
-requested → accepted → met → useful outcome recorded
-          ↘ declined
-          ↘ expired
+recommended → met → useful outcome recorded
+            ↘ skipped
+            ↘ delayed
+            ↘ expired
 ```
 
-Blocking, reporting, and cancellation must be possible independently of the success path.
+An introduction is active immediately when delivered; neither member must accept before acting on it. Either member may skip it, which deactivates it for both and shows the other person only a neutral “This introduction is no longer active” state without identifying who skipped or why. Blocking, reporting, and cancellation must be possible independently of the success path.
 
 ---
 
@@ -350,17 +358,17 @@ Blocking, reporting, and cancellation must be possible independently of the succ
 
 ### Primary activation metric
 
-> Percentage of opted-in visit sessions that produce a mutually accepted connection and a self-reported useful conversation during the same visit.
+> Percentage of opted-in visit sessions that produce a facilitated introduction followed by a self-reported useful conversation during the same visit.
 
 For the initial evaluation, the denominator is first-time product users who complete onboarding and begin an opted-in, connection-seeking visit session. It is not all Cafe orders, landing-page visitors, or accounts. Sessions without an eligible match remain in the denominator because availability is part of the product promise.
 
 Activation evidence is recorded in distinct stages:
 
-- **Accepted:** The recipient explicitly accepts the request in the product.
+- **Recommended:** Both participants were eligible and received the facilitated introduction.
 - **Met:** Both participants confirm that an in-person conversation occurred during the visit.
 - **Useful:** The initiating visitor reports that the conversation was useful; collect the recipient's assessment separately rather than requiring identical ratings.
 
-The stages should be reported independently so a high request-acceptance rate cannot conceal failure to meet or low conversation quality. The PRD should set stage-level targets after establishing a pilot baseline rather than inventing unsupported thresholds in this brief.
+The stages should be reported independently so a high recommendation rate cannot conceal failure to meet or low conversation quality. The PRD should set stage-level targets after establishing a pilot baseline rather than inventing unsupported thresholds in this brief.
 
 ### Funnel
 
@@ -370,9 +378,8 @@ Awareness seen
 → account created or accessed
 → onboarding completed
 → active visit started
-→ recommendation viewed
-→ request sent
-→ request accepted
+→ introduction recommended
+→ introduction viewed
 → members met
 → conversation rated useful
 ```
@@ -382,9 +389,9 @@ Awareness seen
 - Awareness-to-landing-page rate by entry point.
 - Onboarding completion and time to first recommendation.
 - Percentage of sessions with at least one eligible match.
-- Request, acceptance, meeting, and useful-conversation rates.
-- Median time from active visit to accepted connection.
-- Recommendation dismissal and irrelevance rates.
+- Recommendation-view, meeting, and useful-conversation rates.
+- Median time from active visit to facilitated introduction and from introduction to meeting.
+- Introduction skip and recommendation-irrelevance rates.
 - Intent to use the experience again.
 
 ### Downstream business measure for a real pilot
@@ -411,7 +418,7 @@ This is a secondary hypothesis measure, not proof of causality on its own.
 
 - Low-relevance recommendations that reduce trust.
 - Users avoiding check-in because visibility feels socially costly.
-- High empty-state, dismissal, or request-expiration rates.
+- High empty-state, skip, or introduction-expiration rates.
 
 ---
 
@@ -421,7 +428,7 @@ Synthetic personas demonstrate product behavior, not real market liquidity.
 
 ### Scenario A: Ask-to-offer founder advice
 
-A returning Cafe visitor and first-time product user is a founder seeking advice on enterprise GTM. A present startup operator explicitly offers enterprise GTM experience and is open to advising founders. The founder requests a connection, the operator accepts, and both receive a relevant conversation starting point.
+A returning Cafe visitor and first-time product user is a founder seeking advice on enterprise GTM. A present startup operator explicitly offers enterprise GTM experience and is open to advising founders. Both have opted into compatible introduction sessions, so Corgi introduces them simultaneously with a relevant conversation starting point.
 
 ### Scenario B: Hiring and opportunity compatibility
 
@@ -460,8 +467,8 @@ No currently present person satisfies intent and openness constraints. The visit
 ### Supply and liquidity risk
 
 - Is there sufficient role, intent, and expertise diversity at the same time and location?
-- Will helpful regulars repeatedly opt in, or will requests concentrate on a small number of people?
-- How quickly should presence and unanswered requests expire?
+- Will helpful regulars repeatedly opt in, or will introductions concentrate on a small number of people?
+- How quickly should presence and introduction recommendations expire?
 
 ### Trust and safety risk
 
@@ -471,8 +478,8 @@ No currently present person satisfies intent and openness constraints. The visit
 
 ### Experience risk
 
-- Is a mutual digital request less awkward than direct conversation?
-- Will waiting for acceptance conflict with short Cafe visits?
+- Does session-level permission make a simultaneous introduction feel welcome, or do some interaction types still require per-match confirmation?
+- Will members see and act on an introduction quickly enough during short Cafe visits?
 - What minimum coordination is needed without building messaging?
 
 ### Business risk
@@ -490,7 +497,7 @@ The product can move into a PRD when Tech Ops accepts the following:
 - the product objective and activation metric;
 - the intent-first model and shared journey across persona contexts;
 - people-only scope;
-- mutual digital consent as the connection contract;
+- session-level permission and simultaneous facilitated introductions as the connection contract;
 - the distinction between eligibility, relevance, and outcome;
 - the current and target functional journeys;
 - the synthetic scenarios and guardrails;

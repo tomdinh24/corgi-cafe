@@ -14,6 +14,9 @@ This standard studies the desktop and mobile presentation of:
 It defines a reusable frontend vocabulary; it does not define product scope or authorize reuse of
 third-party assets.
 
+Public interface copy follows [BRAND_WRITING.md](BRAND_WRITING.md). That guide is authoritative for
+voice and terminology; this document remains authoritative for visual and interaction behavior.
+
 Observed in the references:
 
 - Both properties use a bright orange and near-black identity, corgi imagery, direct typography,
@@ -65,6 +68,8 @@ recommended system.
 | `gray-300` | `#e1e1e1` | borders and dividers |
 | `paper-100` | `#f6f6f6` | warm page background |
 | `white` | `#ffffff` | raised surface |
+| `header-glass` | `rgba(255, 255, 255, 0.85)` | Cafe navigation background |
+| `header-line` | `#d0d0d0` | Cafe navigation divider |
 
 ```css
 :root {
@@ -77,6 +82,8 @@ recommended system.
   --ref-gray-300: #e1e1e1;
   --ref-paper-100: #f6f6f6;
   --ref-white: #ffffff;
+  --ref-header-glass: rgba(255, 255, 255, 0.85);
+  --ref-header-line: #d0d0d0;
 
   --color-canvas: var(--ref-paper-100);
   --color-surface: var(--ref-white);
@@ -87,6 +94,8 @@ recommended system.
   --color-brand-hover: var(--ref-orange-500);
   --color-brand-pressed: var(--ref-orange-700);
   --color-focus: var(--ref-ink-900);
+  --color-header: var(--ref-header-glass);
+  --color-header-border: var(--ref-header-line);
 }
 ```
 
@@ -150,7 +159,12 @@ must remain coherent using the listed fallbacks.
   --radius-md: 8px;
   --radius-pill: 999px;
 
-  --shadow-button: 0 3px 0 rgb(25 25 25 / 25%);
+  /* Cafe controls use a hard edge plus a small ambient shadow: a physical key, not a floating card. */
+  --button-lift: 4px;
+  --shadow-button: 0 var(--button-lift) 0 var(--ref-ink-900),
+    0 calc(var(--button-lift) + 2px) 8px rgb(25 25 25 / 16%);
+  --shadow-button-hover: 0 5px 0 var(--ref-ink-900),
+    0 7px 10px rgb(25 25 25 / 18%);
   --shadow-raised: 0 8px 24px rgb(25 25 25 / 12%);
   --border-default: 1px solid var(--color-border);
 }
@@ -166,6 +180,10 @@ must remain coherent using the listed fallbacks.
 - Default surface radius is no more than `8px`; reserve pill radius for chips and compact controls.
 
 ## 4. Theme layers
+
+Public Cafe and community copy follows the [Corgi Cafe Brand Writing Guide](./BRAND_WRITING.md).
+This design standard governs presentation; the writing guide governs voice, hooks, calls to action,
+and translation of internal product terminology for visitors.
 
 ```css
 [data-brand-layer="insurance"] {
@@ -222,6 +240,80 @@ where relevant, error where relevant, and reduced-motion behavior.
 - Secondary: near-black field with white text.
 - Body links use an underline or another non-color affordance.
 - Icon-only actions require an accessible name and visible tooltip when meaning is not universal.
+
+### Cafe raised-button contract
+
+The Cafe reference uses controls that read like physical keys: a crisp lower edge remains visible
+at rest and the control visibly settles into it when pressed. Cafe primary and secondary CTAs should
+use this treatment; do not use the raised treatment for text links, quiet actions, or every card.
+
+```css
+[data-brand-layer="cafe"] .button--raised {
+  --button-face: var(--color-brand);
+  --button-label: var(--color-text);
+  --button-edge: var(--ref-ink-900);
+
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px 16px;
+  border: 1px solid var(--button-edge);
+  border-radius: var(--radius-md);
+  background: var(--button-face);
+  color: var(--button-label);
+  box-shadow: var(--shadow-button);
+  font: 600 14px/20px var(--font-sans);
+  text-decoration: none;
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out,
+    background-color 140ms ease-out;
+}
+
+[data-brand-layer="cafe"] .button--raised:hover {
+  background: var(--color-brand-hover);
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px);
+}
+
+[data-brand-layer="cafe"] .button--raised:active {
+  box-shadow: 0 1px 0 var(--button-edge);
+  transform: translateY(calc(var(--button-lift) - 1px));
+}
+
+[data-brand-layer="cafe"] .button--raised:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+[data-brand-layer="cafe"] .button--raised[aria-disabled="true"],
+[data-brand-layer="cafe"] .button--raised:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-brand-layer="cafe"] .button--raised {
+    transition: none;
+  }
+
+  [data-brand-layer="cafe"] .button--raised:hover,
+  [data-brand-layer="cafe"] .button--raised:active {
+    transform: none;
+  }
+}
+```
+
+- Keep the border and the hard lower shadow in the same ink color so the depth reads intentionally
+  at all sizes; a soft shadow by itself makes the button look like a card.
+- On press, reduce the hard shadow and move the face down by the same amount. The button must never
+  jump upward or leave a detached shadow behind.
+- Use the orange face with near-black text for primary actions. For a dark secondary button, set
+  `--button-face` and `--button-edge` to `var(--ref-ink-900)` and retain the white label.
+- Disabled controls are flat and cannot retain hover or press movement. Keyboard focus remains
+  visibly distinct from the raised edge.
 
 ## 6. Responsive behavior
 
