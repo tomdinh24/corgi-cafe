@@ -174,9 +174,8 @@ test("selected candidate goes directly to all four optional public links and edi
   await expect(
     page.getByRole("heading", { name: "Add public links?" }),
   ).toBeVisible();
-  await expect(page.getByLabel("LinkedIn")).toHaveValue("");
+  await expect(page.getByLabel("LinkedIn")).toHaveCount(0);
   for (const label of [
-    "LinkedIn",
     "Personal or company website",
     "GitHub",
     "Other social media",
@@ -191,12 +190,14 @@ test("selected candidate goes directly to all four optional public links and edi
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("Personal or company website")).toHaveValue("casey.example.com");
   await expect(page.getByLabel("GitHub")).toHaveValue("github.com/casey");
+  await expect(page.getByLabel("LinkedIn")).toHaveCount(0);
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByLabel("Role")).toHaveValue(identityValues.role);
   await expect(page.getByLabel("Company or project")).toHaveValue(identityValues.company);
   await expect(page.locator("body")).not.toContainText("Found on linkedin.com");
-  await expect(page.getByText("Added by you · Link only")).toHaveCount(0);
+  await expect(page.getByText("LinkedIn profile · Link only")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "LinkedIn", exact: true })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Personal or company website", exact: true }).fill("https://new.example.com/work");
   await page.getByRole("button", { name: "Remove GitHub" }).click();
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveCount(0);
@@ -220,11 +221,14 @@ test("public link validation is recoverable and normalizes missing schemes", asy
   await page.getByRole("button", { name: "Enter it myself" }).click();
   await page.getByLabel("LinkedIn").fill("https://example.com/casey");
   await page.getByLabel("GitHub").fill("https://github.com/casey/project");
+  await page.getByLabel("Personal or company website").fill("https://linkedin.com/in/casey");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Enter a LinkedIn profile link.")).toBeVisible();
   await expect(page.getByText("Enter a GitHub profile link.")).toBeVisible();
+  await expect(page.getByText("Add LinkedIn profile links in the LinkedIn field.")).toBeVisible();
   await page.getByLabel("LinkedIn").fill("linkedin.com/in/casey");
   await page.getByLabel("GitHub").fill("github.com/casey");
+  await page.getByLabel("Personal or company website").fill("casey.example.com");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("textbox", { name: "LinkedIn", exact: true })).toHaveValue("https://linkedin.com/in/casey");
   await expect(page.getByRole("textbox", { name: "GitHub", exact: true })).toHaveValue("https://github.com/casey");

@@ -54,19 +54,21 @@ export const PublicLinkSchema = z
         "Only HTTP and HTTPS URLs are allowed",
       ),
     use: z.enum(["identifier_only", "public_context"]),
-    provenance: z.literal("member_provided"),
+    provenance: z.enum(["member_provided", "found_on_source"]),
     retrievalStatus: z.literal("not_fetched"),
   })
   .superRefine((link, context) => {
     const parsed = new URL(link.url);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const isLinkedInHost = ["linkedin.com", "lnkd.in"].some(
+      (blocked) => host === blocked || host.endsWith(`.${blocked}`),
+    );
     if (link.kind === "linkedin") {
       const profilePath = parsed.pathname.replace(/\/+$/, "");
       if (
-        !["linkedin.com", "lnkd.in"].some(
-          (blocked) => host === blocked || host.endsWith(`.${blocked}`),
-        ) ||
-        !/^\/in\/[^/]+$/i.test(profilePath) ||
+        !isLinkedInHost ||
+        (link.provenance !== "found_on_source" &&
+          !/^\/in\/[^/]+$/i.test(profilePath)) ||
         link.use !== "identifier_only"
       ) {
         context.addIssue({
@@ -74,10 +76,18 @@ export const PublicLinkSchema = z
           message: "LinkedIn links are identifier-only",
         });
       }
-    } else if (link.use !== "public_context") {
+    } else if (isLinkedInHost) {
       context.addIssue({
         code: "custom",
-        message: "Only LinkedIn links may be identifier-only",
+        message: "LinkedIn profile links belong in the LinkedIn field",
+      });
+    } else if (
+      link.use !== "public_context" ||
+      link.provenance !== "member_provided"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Only member-provided links may be public context",
       });
     }
     if (

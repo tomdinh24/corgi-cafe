@@ -82,6 +82,12 @@ export function validatePublicLink(
   if (!value.trim()) return { normalized: "" };
   const normalized = normalizePublicUrl(value);
   if (!normalized) return { normalized: value, error: URL_ERROR };
+  if (kind !== "linkedin" && isLinkedInUrl(normalized)) {
+    return {
+      normalized,
+      error: "Add LinkedIn profile links in the LinkedIn field.",
+    };
+  }
   if (kind === "linkedin" && !isLinkedInProfile(normalized)) {
     return { normalized, error: "Enter a LinkedIn profile link." };
   }

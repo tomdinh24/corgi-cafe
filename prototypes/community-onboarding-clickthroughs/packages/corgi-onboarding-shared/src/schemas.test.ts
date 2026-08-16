@@ -109,6 +109,31 @@ describe("shared contracts", () => {
         { ...link, url: "ftp://linkedin.com/in/casey", use: "identifier_only" },
       ]).success,
     ).toBe(false);
+    expect(
+      PublicLinksSchema.safeParse([
+        {
+          ...link,
+          kind: "website",
+          url: "https://linkedin.com/in/casey",
+          use: "public_context",
+        },
+      ]).success,
+    ).toBe(false);
+    expect(
+      PublicLinksSchema.safeParse([
+        { ...link, use: "identifier_only", provenance: "found_on_source" },
+      ]).success,
+    ).toBe(true);
+    expect(
+      PublicLinksSchema.safeParse([
+        {
+          ...link,
+          url: "https://lnkd.in/casey",
+          use: "identifier_only",
+          provenance: "found_on_source",
+        },
+      ]).success,
+    ).toBe(true);
   });
   it("requires a URL for a sourced field", () =>
     expect(

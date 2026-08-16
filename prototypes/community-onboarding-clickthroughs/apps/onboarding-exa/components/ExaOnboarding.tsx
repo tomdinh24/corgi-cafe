@@ -28,6 +28,7 @@ import {
   type PublicLinkErrors,
   type PublicLinkKind,
   type PublicLinkValues,
+  PublicLinksSchema,
 } from "@corgi/onboarding-shared";
 
 const FLOW_STATES = [
@@ -210,6 +211,9 @@ export function CorgiOnboarding() {
   const [publicLinkValues, setPublicLinkValues] =
     useState<PublicLinkValues>(EMPTY_LINK_VALUES);
   const [publicLinks, setPublicLinks] = useState<PublicLink[]>([]);
+  const [providerLinkedIn, setProviderLinkedIn] = useState<PublicLink | null>(
+    null,
+  );
   const [linkErrors, setLinkErrors] = useState<PublicLinkErrors>({});
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
   const [path, setPath] = useState<Path>("");
@@ -275,6 +279,7 @@ export function CorgiOnboarding() {
     setDraft(manualDraft());
     setPublicLinkValues(EMPTY_LINK_VALUES);
     setPublicLinks([]);
+    setProviderLinkedIn(null);
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
@@ -370,7 +375,20 @@ export function CorgiOnboarding() {
         location,
       }),
     );
-    setPublicLinks([]);
+    const foundLinkedIn = candidate.identifierOnly
+      ? {
+          kind: "linkedin" as const,
+          url: candidate.profileUrl,
+          use: "identifier_only" as const,
+          provenance: "found_on_source" as const,
+          retrievalStatus: "not_fetched" as const,
+        }
+      : null;
+    setProviderLinkedIn(foundLinkedIn);
+    setPublicLinks(foundLinkedIn ? [foundLinkedIn] : []);
+    if (foundLinkedIn) {
+      setPublicLinkValues((current) => ({ ...current, linkedin: "" }));
+    }
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
@@ -389,17 +407,21 @@ export function CorgiOnboarding() {
       return;
     }
     setPublicLinkValues(result.normalized);
-    setPublicLinks(result.links);
+    const links = providerLinkedIn
+      ? [providerLinkedIn, ...result.links]
+      : result.links;
+    PublicLinksSchema.parse(links);
+    setPublicLinks(links);
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
-      outcome: result.links.length ? "links_added" : "links_skipped",
+      outcome: links.length ? "links_added" : "links_skipped",
     });
     go("profile.review");
   };
 
   const skipPublicLinks = () => {
     setPublicLinkValues(EMPTY_LINK_VALUES);
-    setPublicLinks([]);
+    setPublicLinks(providerLinkedIn ? [providerLinkedIn] : []);
     setLinkErrors({});
     recordComparisonEvent("provider_outcome", {
       variation: "exa",
@@ -855,7 +877,9 @@ export function CorgiOnboarding() {
         <Intro>{manualProfile ? "Share any links that add context to the profile you’re creating. All are optional." : "Share any links that add context to the profile you chose. All are optional."}</Intro>
         <form noValidate onSubmit={submitPublicLinks}>
           <div className="public-links-grid">
-            {LINK_FIELDS.map((field) => (
+            {LINK_FIELDS.filter(
+              (field) => field.kind !== "linkedin" || !providerLinkedIn,
+            ).map((field) => (
               <Field
                 key={field.kind}
                 id={`public-link-${field.kind}`}
@@ -929,10 +953,17 @@ export function CorgiOnboarding() {
                   const details = LINK_FIELDS.find((field) => field.kind === link.kind)!;
                   return (
                     <div className="review-link-row" key={link.kind}>
-                      <Field id={`review-link-${link.kind}`} label={details.label} type="url" inputMode="url" value={publicLinkValues[link.kind]} error={linkErrors[link.kind]} onChange={(event) => { setPublicLinkValues((current) => ({ ...current, [link.kind]: event.target.value })); setLinkErrors((current) => ({ ...current, [link.kind]: undefined })); }} />
+                      {link.provenance === "found_on_source" ? (
+                        <div>
+                          <span>{details.label}</span>
+                          <p>{link.url}</p>
+                        </div>
+                      ) : (
+                        <Field id={`review-link-${link.kind}`} label={details.label} type="url" inputMode="url" value={publicLinkValues[link.kind]} error={linkErrors[link.kind]} onChange={(event) => { setPublicLinkValues((current) => ({ ...current, [link.kind]: event.target.value })); setLinkErrors((current) => ({ ...current, [link.kind]: undefined })); }} />
+                      )}
                       <div className="review-link-meta">
-                        <SourceBadge kind={link.kind === "linkedin" ? "identifier" : "entered"} />
-                        <Button type="button" kind="quiet" aria-label={`Remove ${details.label}`} onClick={() => { setPublicLinkValues((current) => ({ ...current, [link.kind]: "" })); setPublicLinks((current) => current.filter((item) => item.kind !== link.kind)); }}>Remove</Button>
+                        <SourceBadge kind={link.provenance === "found_on_source" ? "found" : link.kind === "linkedin" ? "identifier" : "entered"} host={link.provenance === "found_on_source" ? hostFor(link.url) : undefined} />
+                        <Button type="button" kind="quiet" aria-label={`Remove ${details.label}`} onClick={() => { setPublicLinkValues((current) => ({ ...current, [link.kind]: "" })); setPublicLinks((current) => current.filter((item) => item.kind !== link.kind)); if (link.provenance === "found_on_source") setProviderLinkedIn(null); }}>Remove</Button>
                       </div>
                     </div>
                   );

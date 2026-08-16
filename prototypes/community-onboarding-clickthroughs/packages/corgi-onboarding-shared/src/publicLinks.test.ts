@@ -39,6 +39,12 @@ describe("member-provided public links", () => {
       validatePublicLink("github", "https://github.com/casey/project").error,
     ).toBe("Enter a GitHub profile link.");
     expect(validatePublicLink("github", "https://github.com/casey").error).toBeUndefined();
+    expect(
+      validatePublicLink("website", "https://linkedin.com/in/casey").error,
+    ).toBe("Add LinkedIn profile links in the LinkedIn field.");
+    expect(
+      validatePublicLink("social", "https://lnkd.in/casey").error,
+    ).toBe("Add LinkedIn profile links in the LinkedIn field.");
   });
 
   it("rejects non-public or non-web values", () => {
