@@ -367,23 +367,32 @@ export function ExaOnboarding() {
     const interval = setInterval(checkStatus, 5000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [step, sessionId, setup]);
-  // The mirror of the pool poll: while showing an introduction (step 11), watch for the counterpart
-  // declining it. A decline resets THIS member's own session back to 'searching' server-side, so if
-  // the poll finds the session is no longer 'introduced'/'meeting', carry them back to the "still
-  // looking" pool (re-pooled) or home — instead of stranding them on a match the other person killed.
+  // The mirror of the pool poll: across the whole live-introduction sequence — the reveal (11), the
+  // recognition photos (13), and find-each-other (14) — watch for the other person bailing. A decline
+  // resets THIS member's own session back to 'searching' server-side (a lapsed window sets it to
+  // 'expired'); a session never advances past 'introduced' on its own, so any other value means the
+  // other side left. Carry them back to the "still looking" pool (re-pooled) or home, instead of
+  // letting them keep moving forward — adding photos, trying to find someone — on a match that's dead.
   useEffect(() => {
-    if (step !== 11 || !sessionId || setup !== "configured") return;
+    if (!(step === 11 || step === 13 || step === 14) || !sessionId || setup !== "configured") return;
     let cancelled = false;
+    const clearMatchState = () => {
+      setRecommendationId(""); setCounterpart(null); setMatchExpiresAt(0);
+      setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl("");
+    };
     const checkDeclined = async () => {
       try {
         const result = await jsonGet(`/api/session/${sessionId}`);
         if (cancelled) return;
         if (result.status === "searching") {
-          setRecommendationId(""); setCounterpart(null); setMatchExpiresAt(0);
+          // The other person declined; we were re-pooled. Keep the session id — it's the one that's
+          // now searching, so the pool poll on step 18 can carry us into a fresh match.
+          clearMatchState();
           setNotice("That introduction didn’t work out — we’re looking for someone else worth meeting.");
           go(18);
-        } else if (result.status === "expired" || result.status === "cancelled" || result.status === "completed") {
-          setRecommendationId(""); setCounterpart(null); setMatchExpiresAt(0);
+        } else if (result.status !== "introduced") {
+          // expired / cancelled / completed — the introduction is over; return home.
+          clearMatchState(); setSessionId("");
           setNotice("That introduction ended. Start another whenever you’re ready.");
           go(7);
         }
