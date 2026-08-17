@@ -27,7 +27,7 @@ export async function LandingPage() {
     <div className="landing-page landing-version-a landing-social-refresh">
       <SiteHeader
         center={<div className="landing-nav-links"><a href="#how-it-works">How it works</a><a href="#community-code">Community code</a></div>}
-        right={<><span className="cafe-chip">At Corgi · 9 Claude Lane</span><StartLink href={startHref} className="compact" /></>}
+        right={<StartLink href={startHref} className="compact" />}
       />
 
       <main id="landing-main">
