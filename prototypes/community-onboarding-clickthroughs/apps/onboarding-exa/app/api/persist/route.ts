@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEMO_CAFE_CODE } from "../../../lib/cafes";
 import { PersistPayloadSchema, sourceHost } from "../../../lib/persistence";
 import { createCorgiServerClient, getSupabaseConfig } from "../../../lib/supabase";
 
@@ -60,11 +61,14 @@ export async function POST(request: Request) {
     const session = data.session;
     const { error: closeError } = await supabase!.from("visit_intro_sessions").update({ status: "cancelled" }).eq("member_id", memberId).in("status", ["draft", "searching", "waiting", "introduced", "meeting"]);
     if (closeError) return NextResponse.json({ message: "Your previous intro session could not be closed." }, { status: 502 });
+    // Demo mode is location-less: force presence true and route into the isolated demo cafe so the
+    // real matcher pairs the visitor only with seeded demo people (never a Live user, and vice versa).
+    const isDemo = session.mode === "demo";
     const { data: saved, error } = await supabase!.from("visit_intro_sessions").insert({
       member_id: memberId,
-      order_confirmed_today: session.orderConfirmedToday,
-      at_cafe: session.atCafe,
-      cafe_code: session.cafeCode || "corgi-cafe",
+      order_confirmed_today: isDemo ? true : session.orderConfirmedToday,
+      at_cafe: isDemo ? true : session.atCafe,
+      cafe_code: isDemo ? DEMO_CAFE_CODE : session.cafeCode || "corgi-cafe",
       presence_checked_at: new Date().toISOString(),
       conversation_mode: session.conversationMode,
       topics: session.topics,

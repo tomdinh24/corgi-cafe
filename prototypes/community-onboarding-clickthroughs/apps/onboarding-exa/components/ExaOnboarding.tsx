@@ -7,6 +7,7 @@ import { SiteHeader } from "./SiteHeader";
 import { CORGI_CAFES, DEFAULT_CAFE_CODE, nearestCafe } from "@/lib/cafes";
 
 const LOCATION_CHECK_KEY = "corgi.locationCheck";
+const MODE_KEY = "corgi.mode";
 
 type SetupMode = "checking" | "configured" | "setup_required";
 type Terminal = "" | "community" | "later" | "pass" | "not_met" | "notify" | "finished";
@@ -150,6 +151,12 @@ export function ExaOnboarding() {
   // the generic default never turns this on, so green always means "the system verified you're here".
   const [locationVerified, setLocationVerified] = useState(false);
   const [locationCheck, setLocationCheck] = useState(false);
+  // Live vs Demo. Live = real match at your cafe (unchanged). Demo = location-less, matched against
+  // seeded demo people so the whole flow can be shown solo. Chosen in a post-sign-in modal and
+  // switchable from the top bar; persisted in localStorage.
+  const [mode, setMode] = useState<"live" | "demo">("live");
+  const [modeChosen, setModeChosen] = useState(false);
+  const [showModeModal, setShowModeModal] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [conversationMode, setConversationMode] = useState<"specific" | "open">("specific");
@@ -277,6 +284,17 @@ export function ExaOnboarding() {
   useEffect(() => {
     try { setLocationCheck(window.localStorage.getItem(LOCATION_CHECK_KEY) === "1"); } catch { /* ignore */ }
   }, []);
+  // Restore the saved Live/Demo choice. If none is stored, the post-sign-in modal will ask.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(MODE_KEY);
+      if (stored === "live" || stored === "demo") { setMode(stored); setModeChosen(true); }
+    } catch { /* ignore */ }
+  }, []);
+  // Ask for a mode the first time a signed-in visitor lands on home without a saved choice.
+  useEffect(() => {
+    if (!resuming && !modeChosen && step === 7 && (authMode === "magiclink" || authMode === "dev")) setShowModeModal(true);
+  }, [resuming, modeChosen, step, authMode]);
   // Close the avatar photo-source menu when clicking anywhere outside it.
   useEffect(() => {
     if (!photoMenuOpen) return;
@@ -358,7 +376,7 @@ export function ExaOnboarding() {
   // Order-confirmed is still simulated as passing (see step 8); presence is now real when the
   // location check is on. With the check on, always route through the presence screen (step 8) so a
   // cafe is resolved before a session starts; with it off, skip straight to choosing a conversation.
-  const goMeetSomeone = () => go(locationCheck ? 8 : 9);
+  const goMeetSomeone = () => go(mode === "demo" ? 9 : locationCheck ? 8 : 9);
   // Resolve which Corgi Cafe the visitor is standing in from the browser's coordinates.
   const useMyLocation = () => {
     setLocationError("");
@@ -390,6 +408,11 @@ export function ExaOnboarding() {
     try { window.localStorage.setItem(LOCATION_CHECK_KEY, on ? "1" : "0"); } catch { /* ignore */ }
     if (!on) { setAtCafe(true); setCafeCode(DEFAULT_CAFE_CODE); setCafeLabel(""); setLocationVerified(false); setLocationError(""); }
   };
+  const setModeFlag = (next: "live" | "demo") => {
+    setMode(next); setModeChosen(true); setShowModeModal(false);
+    try { window.localStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
+    if (next === "demo") setLocationCheckFlag(false); // Demo is location-less.
+  };
   const cleanLinks = useMemo(() => Object.entries(links).flatMap(([kind, url]) => url.trim() ? [{ kind: kind as LinkKind, url: url.trim() }] : []), [links]);
   const go = (next: number) => { setError(""); setNotice(""); setStep(next); };
   const back = () => go(Math.max(0, step - 1));
@@ -415,15 +438,15 @@ export function ExaOnboarding() {
   // of every input after one character. It's created once via useMemo and reads the account/auth
   // values it needs from a ref that's refreshed every render, so it stays fresh without being
   // recreated.
-  const shellState = useRef({ accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount });
-  shellState.current = { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount };
+  const shellState = useRef({ accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount, mode, setModeFlag, showModeModal });
+  shellState.current = { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount, mode, setModeFlag, showModeModal };
   const Shell = useMemo(() => function Shell({ step: shellStep, children, wide = false, hideProgress = false }: { step: number; children: ReactNode; wide?: boolean; hideProgress?: boolean }) {
-    const { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount } = shellState.current;
+    const { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount, mode, setModeFlag, showModeModal } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
-    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseEnter={() => setAccountMenuOpen(true)} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}{locationVerified
+    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="mode-switch" role="group" aria-label="Live or Demo mode"><button type="button" className={mode === "live" ? "selected" : ""} aria-pressed={mode === "live"} onClick={() => setModeFlag("live")}>Live</button><button type="button" className={mode === "demo" ? "selected" : ""} aria-pressed={mode === "demo"} onClick={() => setModeFlag("demo")}>Demo</button></div>}{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseEnter={() => setAccountMenuOpen(true)} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}{locationVerified
       ? <span className="cafe-pill verified" title={`Verified: you’re at ${cafeLabel || "a Corgi Cafe"}`}><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span>
-      : <a className="cafe-pill" href="https://www.corgicafe.com/locations" target="_blank" rel="noopener noreferrer" title="Find a Corgi Cafe near you"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</a>}</>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
+      : <a className="cafe-pill" href="https://www.corgicafe.com/locations" target="_blank" rel="noopener noreferrer" title="Find a Corgi Cafe near you"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</a>}</>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section>{showModeModal && <div className="mode-modal" role="dialog" aria-modal="true" aria-labelledby="mode-modal-title"><div className="mode-modal-card"><h2 id="mode-modal-title">How do you want to try Corgi?</h2><p>Pick a mode to continue — you can switch anytime from the top bar.</p><div className="mode-modal-choices"><button type="button" className="mode-choice" onClick={() => setModeFlag("live")}><strong>Live</strong><span>Meet a real person who’s at your Corgi Cafe right now.</span></button><button type="button" className="mode-choice" onClick={() => setModeFlag("demo")}><strong>Demo</strong><span>Try the whole flow solo — we’ll match you with a sample guest.</span></button></div></div></div>}</main>;
   }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
   // Awaitable: the recognition-media upload (next step) is gated by RLS on this decision being
@@ -549,10 +572,15 @@ export function ExaOnboarding() {
     setLoading(true); setError("");
     try {
       const resolvedTopics = topics.map((topic) => (topic === "Other" ? otherTopic.trim() : topic)).filter(Boolean);
-      const result = await save({ kind: "session", session: { orderConfirmedToday: true, atCafe, cafeCode, conversationMode, topics: conversationMode === "specific" ? resolvedTopics : [], usefulContext: useful, offerContext: offer, boundaries: commercial } });
+      const result = await save({ kind: "session", session: { orderConfirmedToday: true, atCafe, cafeCode, mode, conversationMode, topics: conversationMode === "specific" ? resolvedTopics : [], usefulContext: useful, offerContext: offer, boundaries: commercial } });
       const sid = typeof result?.sessionId === "string" ? result.sessionId : "";
       setSessionId(sid);
       go(10);
+      // Demo: re-arm the isolated demo pool with this session's exact boundaries so the real matcher
+      // has a compatible counterpart to pick. Best-effort — a failure just yields an honest no-match.
+      if (mode === "demo" && setup === "configured") {
+        try { await jsonPost("/api/demo/seed", { boundaries: commercial }); } catch { /* fall through to match */ }
+      }
       await runMatch(sid);
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Your intro session could not be started."); go(9); }

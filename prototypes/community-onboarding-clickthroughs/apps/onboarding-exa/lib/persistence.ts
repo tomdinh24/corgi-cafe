@@ -45,6 +45,10 @@ export const SessionPayloadSchema = z.object({
   // Which Corgi Cafe they're at — the matcher only pairs people who share this code. Defaults to the
   // single generic cafe when the location check is off.
   cafeCode: z.string().trim().min(1).max(60).optional(),
+  // "demo" routes the session into the isolated demo cafe (matched only against seeded demo people);
+  // "live" (or absent) is normal behavior. The server forces the cafe_code, so a spoofed cafeCode
+  // can't cross the demo/live boundary.
+  mode: z.enum(["live", "demo"]).optional(),
   conversationMode: z.enum(["specific", "open"]),
   topics: z.array(z.string().trim().min(1).max(80)).max(4),
   usefulContext: z.string().trim().max(600),

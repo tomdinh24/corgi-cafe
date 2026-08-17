@@ -7,6 +7,11 @@ export type Cafe = { code: string; name: string; lat: number; lng: number; radiu
 export const DEFAULT_CAFE_CODE = "corgi-cafe";
 export const DEFAULT_CAFE_NAME = "Corgi Cafe";
 
+// Demo mode runs in its own isolated cafe. The matcher only pairs people who share a `cafe_code`,
+// so seeding the synthetic demo people under this code guarantees they can NEVER surface in a real
+// (Live) pool, and a Live user can never be matched with a demo person.
+export const DEMO_CAFE_CODE = "corgi-demo";
+
 export const CORGI_CAFES: Cafe[] = [
   { code: "sf-defi", name: "SF DeFi", lat: 37.7897, lng: -122.3972, radiusM: 250 },
   { code: "sf-mission", name: "SF Mission", lat: 37.7599, lng: -122.4148, radiusM: 250 },
