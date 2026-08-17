@@ -145,6 +145,10 @@ export function ExaOnboarding() {
   const [atCafe, setAtCafe] = useState(true);
   const [cafeCode, setCafeCode] = useState(DEFAULT_CAFE_CODE);
   const [cafeLabel, setCafeLabel] = useState("");
+  // True only once the browser's geolocation has actually placed the visitor inside a Corgi Cafe.
+  // Drives the green presence dot and disables the pill's "find a cafe" redirect — a manual pick or
+  // the generic default never turns this on, so green always means "the system verified you're here".
+  const [locationVerified, setLocationVerified] = useState(false);
   const [locationCheck, setLocationCheck] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
@@ -366,23 +370,25 @@ export function ExaOnboarding() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const hit = nearestCafe(pos.coords.latitude, pos.coords.longitude);
-        if (hit) { setCafeCode(hit.cafe.code); setCafeLabel(hit.cafe.name); setAtCafe(true); }
-        else { setAtCafe(false); setCafeLabel(""); setLocationError("You don’t seem to be at a Corgi Cafe right now."); }
+        if (hit) { setCafeCode(hit.cafe.code); setCafeLabel(hit.cafe.name); setAtCafe(true); setLocationVerified(true); }
+        else { setAtCafe(false); setCafeLabel(""); setLocationVerified(false); setLocationError("You don’t seem to be at a Corgi Cafe right now."); }
         setLocating(false);
       },
-      () => { setLocationError("We couldn’t read your location — pick your cafe below."); setLocating(false); },
+      () => { setLocationVerified(false); setLocationError("We couldn’t read your location — pick your cafe below."); setLocating(false); },
       { enableHighAccuracy: true, timeout: 8000 },
     );
   };
   const pickCafe = (code: string) => {
     const cafe = CORGI_CAFES.find((c) => c.code === code);
     if (!cafe) return;
-    setCafeCode(cafe.code); setCafeLabel(cafe.name); setAtCafe(true); setLocationError("");
+    // A manual pick resolves the cafe for matching, but is not a system-verified presence, so the
+    // dot stays neutral and the pill keeps its "find a cafe" redirect.
+    setCafeCode(cafe.code); setCafeLabel(cafe.name); setAtCafe(true); setLocationVerified(false); setLocationError("");
   };
   const setLocationCheckFlag = (on: boolean) => {
     setLocationCheck(on);
     try { window.localStorage.setItem(LOCATION_CHECK_KEY, on ? "1" : "0"); } catch { /* ignore */ }
-    if (!on) { setAtCafe(true); setCafeCode(DEFAULT_CAFE_CODE); setCafeLabel(""); setLocationError(""); }
+    if (!on) { setAtCafe(true); setCafeCode(DEFAULT_CAFE_CODE); setCafeLabel(""); setLocationVerified(false); setLocationError(""); }
   };
   const cleanLinks = useMemo(() => Object.entries(links).flatMap(([kind, url]) => url.trim() ? [{ kind: kind as LinkKind, url: url.trim() }] : []), [links]);
   const go = (next: number) => { setError(""); setNotice(""); setStep(next); };
@@ -415,7 +421,9 @@ export function ExaOnboarding() {
     const { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
-    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseEnter={() => setAccountMenuOpen(true)} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
+    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseEnter={() => setAccountMenuOpen(true)} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}{locationVerified
+      ? <span className="cafe-pill verified" title={`Verified: you’re at ${cafeLabel || "a Corgi Cafe"}`}><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span>
+      : <a className="cafe-pill" href="https://www.corgicafe.com/locations" target="_blank" rel="noopener noreferrer" title="Find a Corgi Cafe near you"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</a>}</>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
   }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
   // Awaitable: the recognition-media upload (next step) is gated by RLS on this decision being
