@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       member_id: memberId,
       order_confirmed_today: session.orderConfirmedToday,
       at_cafe: session.atCafe,
+      cafe_code: session.cafeCode || "corgi-cafe",
       presence_checked_at: new Date().toISOString(),
       conversation_mode: session.conversationMode,
       topics: session.topics,

@@ -175,6 +175,7 @@ export function ExaOnboarding() {
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   // Account settings is a real pushed route (/account) rather than a hidden flag, so the browser
   // Back button and the "Done" button both land back on /home instead of exiting to the landing
   // page. Deriving the view from the path keeps the URL the single source of truth.
@@ -279,6 +280,13 @@ export function ExaOnboarding() {
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [photoMenuOpen]);
+  // Close the header profile menu when clicking anywhere outside it (mirrors the photo menu).
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onDown = (event: MouseEvent) => { if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) setAccountMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [accountMenuOpen]);
   useEffect(() => {
     if (resuming) return;
     // Account settings is a pushed history entry that owns its own URL — never replace it away,
@@ -407,7 +415,7 @@ export function ExaOnboarding() {
     const { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
-    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu"><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
+    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseEnter={() => setAccountMenuOpen(true)} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
   }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
   // Awaitable: the recognition-media upload (next step) is gated by RLS on this decision being

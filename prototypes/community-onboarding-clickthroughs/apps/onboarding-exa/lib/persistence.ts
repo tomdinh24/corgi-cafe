@@ -42,6 +42,9 @@ export const ProfilePayloadSchema = z.object({
 export const SessionPayloadSchema = z.object({
   orderConfirmedToday: z.boolean(),
   atCafe: z.boolean(),
+  // Which Corgi Cafe they're at — the matcher only pairs people who share this code. Defaults to the
+  // single generic cafe when the location check is off.
+  cafeCode: z.string().trim().min(1).max(60).optional(),
   conversationMode: z.enum(["specific", "open"]),
   topics: z.array(z.string().trim().min(1).max(80)).max(4),
   usefulContext: z.string().trim().max(600),
