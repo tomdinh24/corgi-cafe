@@ -172,7 +172,7 @@ export function ExaOnboarding() {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [conversationMode, setConversationMode] = useState<"specific" | "open">("specific");
-  const [topics, setTopics] = useState<string[]>([topicOptions[0]]);
+  const [topics, setTopics] = useState<string[]>([]);
   const [otherTopic, setOtherTopic] = useState("");
   const [useful, setUseful] = useState("");
   const [offer, setOffer] = useState("");
