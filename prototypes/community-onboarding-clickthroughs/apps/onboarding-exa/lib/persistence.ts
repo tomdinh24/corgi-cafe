@@ -14,6 +14,7 @@ export const ProfilePayloadSchema = z.object({
   aboutMe: z.string().trim().max(800),
   currentWork: z.string().trim().max(280),
   favoriteDrink: z.string().trim().max(160),
+  avatarUrl: z.string().url().max(2048).optional(),
   sources: z.array(PublicLinkSchema).max(4),
 });
 

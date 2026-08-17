@@ -13,7 +13,7 @@ export async function GET() {
   if (error || !data.user) return NextResponse.json({ authenticated: false });
   const { data: profile } = await supabase!
     .from("profiles")
-    .select("first_name,last_name,broad_location,role_title,company_or_project,about_me,current_work,favorite_drink,confirmed_at")
+    .select("first_name,last_name,broad_location,role_title,company_or_project,about_me,current_work,favorite_drink,avatar_url,confirmed_at")
     .eq("member_id", data.user.id)
     .maybeSingle();
   const { data: sources } = await supabase!
@@ -34,6 +34,7 @@ export async function GET() {
     .maybeSingle();
   let activeSession: { id: string; status: string } | null = null;
   let activeRecommendationId: string | null = null;
+  let introducedAt: string | null = null;
   if (session) {
     const notExpired = new Date(session.expires_at as string) > new Date();
     // A waiting session only matters while unexpired; a match stays resumable so a dropped
@@ -44,6 +45,16 @@ export async function GET() {
         const { data: statusRow } = await supabase!.rpc("get_my_session_status", { target_session_id: session.id });
         const row = Array.isArray(statusRow) ? statusRow[0] : statusRow;
         activeRecommendationId = (row?.recommendation_id as string) ?? null;
+        // When the match started — the client counts the 5-minute window from here so a refresh
+        // resumes the same countdown instead of restarting it.
+        if (activeRecommendationId) {
+          const { data: rec } = await supabase!
+            .from("recommendations")
+            .select("introduced_at")
+            .eq("id", activeRecommendationId)
+            .maybeSingle();
+          introducedAt = (rec?.introduced_at as string) ?? null;
+        }
       }
     }
   }
@@ -53,6 +64,7 @@ export async function GET() {
     email: data.user.email ?? "",
     activeSession,
     activeRecommendationId,
+    introducedAt,
     profile: profile
       ? {
           firstName: profile.first_name,
@@ -63,6 +75,7 @@ export async function GET() {
           aboutMe: profile.about_me ?? "",
           currentWork: profile.current_work ?? "",
           favoriteDrink: profile.favorite_drink ?? "",
+          avatarUrl: profile.avatar_url ?? "",
           confirmed: Boolean(profile.confirmed_at),
         }
       : null,

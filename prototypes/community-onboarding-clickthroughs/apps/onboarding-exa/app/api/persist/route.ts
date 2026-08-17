@@ -26,6 +26,9 @@ export async function POST(request: Request) {
       about_me: profile.aboutMe || null,
       current_work: profile.currentWork || null,
       favorite_drink: profile.favoriteDrink || null,
+      // Only overwrite the avatar when the client sends one, so saving profile edits from account
+      // settings never wipes a photo the member uploaded separately.
+      ...(profile.avatarUrl ? { avatar_url: profile.avatarUrl } : {}),
       confirmed_at: new Date().toISOString(),
     });
     if (error) return NextResponse.json({ message: "Your profile could not be saved." }, { status: 502 });
