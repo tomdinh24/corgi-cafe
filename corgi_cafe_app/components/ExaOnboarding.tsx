@@ -5,20 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { normalizePublicUrl, namedPlatformForUrl, namedPlatformLabel, type PersonCandidate } from "@corgi/onboarding-shared";
 import { SiteHeader } from "./SiteHeader";
 import { CORGI_CAFES, DEFAULT_CAFE_CODE, nearestCafe } from "@/lib/cafes";
+import { bootCache, computeResume, invalidateBoot, loadBoot, MATCH_WINDOW_MS, type AuthMode, type LinkKind, type Resume, type SetupMode } from "@/lib/resume";
 
 const LOCATION_CHECK_KEY = "corgi.locationCheck";
 const MODE_KEY = "corgi.mode";
 
-type SetupMode = "checking" | "configured" | "setup_required";
 type Terminal = "" | "community" | "later" | "pass" | "not_met" | "notify" | "finished";
-type LinkKind = "linkedin_identifier" | "website" | "github" | "social";
 
 const topicOptions = ["Building community", "Creative projects", "Product & technology", "Career stories", "AI & products", "First customers", "Fundraising", "SF life"];
-
-// A match is only live for a short window: if neither person acts within this window it expires so
-// both are freed to meet someone else. The introduction screen counts down from here; on refresh the
-// countdown resumes from the server's introduced_at rather than restarting.
-const MATCH_WINDOW_MS = 5 * 60 * 1000;
 
 // The hold still counts down in the background, but we surface only a soft, rounded sense of how much
 // time is left ("~10 min", then 5 / 2 / 1) instead of a ticking clock — a gentle heads-up, not a
@@ -123,27 +117,33 @@ async function jsonGet(path: string) {
 export function ExaOnboarding() {
   const pathname = usePathname();
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [setup, setSetup] = useState<SetupMode>("checking");
-  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink" | "otp">("checking");
-  const [email, setEmail] = useState("");
+  // On a remount within the same page-load (e.g. the resume redirect /sign-in -> /home), bootCache is
+  // already populated, so we derive the resumed state synchronously and seed it into the initial
+  // state below — the correct screen paints on the first frame with no loader and no re-fetch.
+  const [cached] = useState<Resume | null>(() => (bootCache ? computeResume(bootCache) : null));
+  const [step, setStep] = useState(() => cached?.step ?? 0);
+  const [setup, setSetup] = useState<SetupMode>(() => cached?.setup ?? "checking");
+  const [authMode, setAuthMode] = useState<AuthMode>(() => cached?.authMode ?? "checking");
+  const [email, setEmail] = useState(() => cached?.email ?? "");
   const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [authIntent, setAuthIntent] = useState<"signup" | "signin">(() => (pathname === "/sign-in" ? "signin" : "signup"));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [location, setLocation] = useState("");
-  const [role, setRole] = useState("");
-  const [company, setCompany] = useState("");
-  const [about, setAbout] = useState("");
-  const [currentWork, setCurrentWork] = useState("");
-  const [favoriteDrink, setFavoriteDrink] = useState("");
+  const [firstName, setFirstName] = useState(() => cached?.profile?.firstName ?? "");
+  const [lastName, setLastName] = useState(() => cached?.profile?.lastName ?? "");
+  const [location, setLocation] = useState(() => cached?.profile?.broadLocation ?? "");
+  const [role, setRole] = useState(() => cached?.profile?.roleTitle ?? "");
+  const [company, setCompany] = useState(() => cached?.profile?.companyOrProject ?? "");
+  const [about, setAbout] = useState(() => cached?.profile?.aboutMe ?? "");
+  const [currentWork, setCurrentWork] = useState(() => cached?.profile?.currentWork ?? "");
+  const [favoriteDrink, setFavoriteDrink] = useState(() => cached?.profile?.favoriteDrink ?? "");
   // Profile photo. Set from the chosen search candidate's public photo during onboarding, or from a
   // file uploaded in account settings; shown wherever this member's avatar appears post-onboarding.
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [links, setLinks] = useState<Record<LinkKind, string>>({ linkedin_identifier: "", website: "", github: "", social: "" });
+  const [avatarUrl, setAvatarUrl] = useState(() => cached?.profile?.avatarUrl ?? "");
+  const [links, setLinks] = useState<Record<LinkKind, string>>(() => cached?.links ?? { linkedin_identifier: "", website: "", github: "", social: "" });
   const [candidates, setCandidates] = useState<PersonCandidate[]>([]);
   const [candidateId, setCandidateId] = useState("");
   const [candidateSource, setCandidateSource] = useState<{ kind: LinkKind; url: string } | null>(null);
@@ -190,12 +190,12 @@ export function ExaOnboarding() {
   const [meetingSecondsLeft, setMeetingSecondsLeft] = useState(600);
   // Epoch ms when the current match expires (0 = no live match). The introduction screen (step 11)
   // counts down to it; when it passes, the match is expired server-side and both people are reset.
-  const [matchExpiresAt, setMatchExpiresAt] = useState(0);
+  const [matchExpiresAt, setMatchExpiresAt] = useState(() => cached?.matchExpiresAt ?? 0);
   const [matchSecondsLeft, setMatchSecondsLeft] = useState(Math.round(MATCH_WINDOW_MS / 1000));
   const [feedback, setFeedback] = useState<"" | "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful">("");
   const [feedbackNote, setFeedbackNote] = useState("");
-  const [sessionId, setSessionId] = useState("");
-  const [recommendationId, setRecommendationId] = useState("");
+  const [sessionId, setSessionId] = useState(() => cached?.sessionId ?? "");
+  const [recommendationId, setRecommendationId] = useState(() => cached?.recommendationId ?? "");
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -219,78 +219,60 @@ export function ExaOnboarding() {
   // True until we know whether this visitor already has a live session (and a claimed profile) to
   // resume into — gates the very first paint so we never flash the sign-up screen before jumping
   // straight to a resumed session.
-  const [resuming, setResuming] = useState(true);
+  // If the boot data is already cached (a remount within this page-load), we hydrated synchronously
+  // above, so there is nothing to wait for — skip the loader entirely.
+  const [resuming, setResuming] = useState(() => bootCache === null);
 
   useEffect(() => {
-    // Fire both boot calls at once instead of chaining status behind config. They're independent
-    // (status returns {authenticated:false} when Supabase isn't configured), so running them in
-    // parallel halves the resume wait a signed-in visitor sees before landing on /home.
-    const configPromise = fetch("/api/config").then((r) => r.json());
-    const statusPromise = fetch("/api/auth/status").then((r) => r.json()).catch(() => ({ authenticated: false }));
-    configPromise.then(async (data) => {
-      setSetup(data.supabase);
-      setAuthMode(data.authMode ?? "preview");
-      if (data.authMode === "otp" || data.authMode === "magiclink" || data.authMode === "dev") {
-        // Already signed in (OTP-verified this tab, magic-link return, or a live session from
-        // earlier tonight)? Resume
-        // where they left off instead of re-running onboarding from scratch.
-        try {
-          const status = await statusPromise;
-          if (!status.authenticated) return;
-          setEmail(status.email ?? "");
-          const profile = status.profile;
-          if (profile) {
-            setFirstName(profile.firstName ?? ""); setLastName(profile.lastName ?? "");
-            setLocation(profile.broadLocation ?? ""); setRole(profile.roleTitle ?? ""); setCompany(profile.companyOrProject ?? "");
-            setAbout(profile.aboutMe ?? ""); setCurrentWork(profile.currentWork ?? ""); setFavoriteDrink(profile.favoriteDrink ?? "");
-            setAvatarUrl(profile.avatarUrl ?? "");
-          }
-          if (Array.isArray(status.sources) && status.sources.length) {
-            setLinks((current) => {
-              const next = { ...current };
-              for (const source of status.sources) {
-                if (source && typeof source.kind === "string" && source.kind in next) next[source.kind as LinkKind] = source.url ?? "";
-              }
-              return next;
-            });
-          }
-          // Resume into a live match after a refresh/reconnect: a matched member returns to their
-          // introduction; a member still waiting in the pool returns to the "still looking" screen
-          // (which re-arms polling). Otherwise land on home / profile as before.
-          const active = status.activeSession;
-          if (profile?.confirmed && active?.id && active?.status) {
-            if ((active.status === "introduced" || active.status === "meeting") && status.activeRecommendationId) {
-              // A "meeting" session is already past the intro window (both confirmed continue), so it
-              // never expires; an "introduced" session still owes the 5-minute window, counted from
-              // when the match was made so a refresh resumes — not restarts — the countdown.
-              const startedAt = status.introducedAt ? new Date(status.introducedAt).getTime() : Date.now();
-              const expiresAt = startedAt + MATCH_WINDOW_MS;
-              if (active.status === "introduced" && expiresAt <= Date.now()) {
-                // The window lapsed while they were away: expire it server-side and land on home.
-                void fetch(`/api/introduction/${status.activeRecommendationId}/expire`, { method: "POST" }).catch(() => {});
-                setStep((current) => (current !== 0 ? current : 7));
-              } else {
-                setSessionId(active.id);
-                setRecommendationId(status.activeRecommendationId);
-                if (active.status === "introduced") setMatchExpiresAt(expiresAt);
-                try {
-                  const p = await jsonGet(`/api/introduction/${status.activeRecommendationId}`);
-                  setCounterpart({ firstName: p.firstName ?? "Someone", roleTitle: p.roleTitle ?? "", currentWork: p.currentWork ?? "", reason: p.reason ?? "" });
-                } catch { /* still land on the match; the screen re-fetches the counterpart */ }
-                setStep((current) => (current !== 0 ? current : 11));
-              }
-            } else if (active.status === "searching") {
-              setSessionId(active.id);
-              setStep((current) => (current !== 0 ? current : 18));
-            } else {
-              setStep((current) => (current !== 0 ? current : 7));
-            }
-          } else {
-            setStep((current) => (current !== 0 ? current : profile?.confirmed ? 7 : 2));
-          }
-        } catch { /* stay on the email step */ }
+    let cancelled = false;
+    // Fetches the counterpart for a resumed live match (step 11) without blocking the first paint —
+    // the intro screen tolerates a missing counterpart and re-fetches, so this stays fire-and-forget.
+    const hydrateMatch = (r: Resume) => {
+      if (r.pendingExpire) {
+        // The intro window lapsed while they were away: expire it server-side; they land on home.
+        void fetch(`/api/introduction/${r.pendingExpire}/expire`, { method: "POST" }).catch(() => {});
       }
-    }).catch(() => { setSetup("setup_required"); setAuthMode("preview"); }).finally(() => setResuming(false));
+      if (r.pendingCounterpart) {
+        void jsonGet(`/api/introduction/${r.pendingCounterpart}`)
+          .then((p) => { if (!cancelled) setCounterpart({ firstName: p.firstName ?? "Someone", roleTitle: p.roleTitle ?? "", currentWork: p.currentWork ?? "", reason: p.reason ?? "" }); })
+          .catch(() => { /* still land on the match; the screen re-fetches the counterpart */ });
+      }
+    };
+
+    if (bootCache && cached) {
+      // Cache hit: state was seeded synchronously from `cached`; only the async match lookup remains.
+      hydrateMatch(cached);
+      return () => { cancelled = true; };
+    }
+
+    // First load this page-load: fetch config + status once (cached for any later remount), then
+    // apply the resumed state. computeResume mirrors the synchronous seed path so both agree.
+    loadBoot().then((boot) => {
+      if (cancelled) return;
+      const r = computeResume(boot);
+      setSetup(r.setup);
+      setAuthMode(r.authMode);
+      if (!r.authenticated) return;
+      setEmail(r.email);
+      if (r.profile) {
+        setFirstName(r.profile.firstName); setLastName(r.profile.lastName);
+        setLocation(r.profile.broadLocation); setRole(r.profile.roleTitle); setCompany(r.profile.companyOrProject);
+        setAbout(r.profile.aboutMe); setCurrentWork(r.profile.currentWork); setFavoriteDrink(r.profile.favoriteDrink);
+        setAvatarUrl(r.profile.avatarUrl);
+      }
+      setLinks(r.links);
+      if (r.sessionId) setSessionId(r.sessionId);
+      if (r.recommendationId) setRecommendationId(r.recommendationId);
+      if (r.matchExpiresAt) setMatchExpiresAt(r.matchExpiresAt);
+      // Never clobber a step the visitor has already navigated to during the async window.
+      setStep((current) => (current !== 0 ? current : r.step));
+      hydrateMatch(r);
+    }).catch(() => {
+      if (cancelled) return;
+      setSetup("setup_required"); setAuthMode("preview");
+    }).finally(() => { if (!cancelled) setResuming(false); });
+
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step, terminal]);
   // Location check is an opt-in beta the visitor toggles in account settings (off by default),
@@ -307,7 +289,7 @@ export function ExaOnboarding() {
   }, []);
   // Ask for a mode the first time a signed-in visitor lands on home without a saved choice.
   useEffect(() => {
-    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev")) setShowModeModal(true);
+    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev" || authMode === "password")) setShowModeModal(true);
   }, [resuming, modeChosen, step, authMode]);
   // Close the avatar photo-source menu when clicking anywhere outside it.
   useEffect(() => {
@@ -430,7 +412,12 @@ export function ExaOnboarding() {
   const cleanLinks = useMemo(() => (Object.entries(links) as [LinkKind, string][]).flatMap(([kind, value]) => { const normalized = normalizePublicUrl(value); return normalized ? [{ kind, url: normalized }] : []; }), [links]);
   const linkErrors = useMemo(() => { const errors: Partial<Record<LinkKind, string>> = {}; (Object.entries(links) as [LinkKind, string][]).forEach(([kind, value]) => { if (!value.trim()) return; const normalized = normalizePublicUrl(value); if (!normalized) { errors[kind] = "Enter a full public link, like https://example.com."; return; } const platform = namedPlatformForUrl(normalized); const expected = kind === "linkedin_identifier" ? "linkedin" : kind === "github" ? "github" : null; if (platform && platform !== expected) { const label = namedPlatformLabel(platform); errors[kind] = `Add ${label} profile links in the ${label} field.`; } }); return errors; }, [links]);
   const hasLinkErrors = Object.keys(linkErrors).length > 0;
-  const go = (next: number) => { setError(""); setNotice(""); setStep(next); };
+  // go() is the user-driven step advance (never the passive resume, which uses setStep directly).
+  // The moment the visitor acts — signing up, confirming their profile, starting a match — the cached
+  // boot payload from page load is stale (their auth/profile state has changed on the server). Drop
+  // it so the next route-change remount re-fetches fresh status instead of resuming into the old
+  // screen (which otherwise bounced a just-signed-up member from the basic-info page back to sign-up).
+  const go = (next: number) => { setError(""); setNotice(""); invalidateBoot(); setStep(next); };
   const back = () => go(Math.max(0, step - 1));
   const save = async (body: unknown) => { const result = await jsonPost("/api/persist", body); if (result.status === "preview_only") setNotice("Supabase is not connected. This preview continues without saving."); return result; };
   const record = (eventName: string, context: Record<string, string | number | boolean | null> = {}) => {
@@ -506,6 +493,28 @@ export function ExaOnboarding() {
     event.preventDefault(); setLoading(true); setError("");
     try { const result = await jsonPost("/api/auth/verify", { email, token: otp }); if (result.mode === "preview") setNotice("Preview mode: nothing will be saved until Supabase is connected."); go(2); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "That code did not work."); }
+    finally { setLoading(false); }
+  };
+  // Email + password (configured "password" mode). Sign-up creates the account and drops straight
+  // into onboarding; sign-in restores the session and reloads so the boot gate resumes the member
+  // where they left off (home / match / onboarding). No email is sent, so this works for any user.
+  const submitPassword = async (event: FormEvent) => {
+    event.preventDefault(); setError("");
+    if (authIntent === "signup") {
+      if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+      if (password !== confirmPassword) { setError("Those passwords do not match."); return; }
+    } else if (!password) { setError("Enter your password."); return; }
+    setLoading(true);
+    try {
+      const path = authIntent === "signup" ? "/api/auth/signup" : "/api/auth/signin";
+      const result = await jsonPost(path, { email, password });
+      if (result.mode === "confirm_required") { setNotice(result.message); return; }
+      // Sign-in: full navigation to /home (an app route) rather than "/" (the marketing landing page)
+      // so the boot gate runs on a fresh mount and resumes the member into home / their onboarding
+      // step / an active match. Sending them to "/" dropped them on the landing page instead.
+      if (authIntent === "signin") { window.location.assign("/home"); return; }
+      go(2);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "That did not work. Try again."); }
     finally { setLoading(false); }
   };
   const search = async () => {
@@ -642,7 +651,17 @@ export function ExaOnboarding() {
     return <Shell step={12}><div className="terminal-mark">✓</div><Header eyebrow={content[0]} title={content[1]}>{content[2]}</Header>{terminal === "pass" ? <Actions><Primary onClick={() => { record("meet_another_after_pass"); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); setTerminal(""); goMeetSomeone(); }}>Start new chat</Primary><Secondary onClick={() => { record("pass_session_finished"); setTerminal("finished"); }}>Maybe later</Secondary></Actions> : <Actions><Primary onClick={() => { setTerminal(""); go(7); }}>Back to Corgi</Primary></Actions>}</Shell>;
   }
 
-  if (step === 0) return <Shell step={0}><Header eyebrow="Let’s start" title={authIntent === "signin" ? "Sign in to Corgi." : "Start an introduction."}>{authIntent === "signin" ? "Enter the email on your Corgi account and we’ll send you a sign-in link." : "Sign up to create a profile for conversations at Corgi."}</Header>{setup === "setup_required" && <aside className="setup-banner"><strong>Database setup needed</strong><span>You can review the flow, but accounts and interactions will not be saved until Supabase is connected.</span></aside>}<form onSubmit={startEmail}><div className="journey-stack"><Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || !email.includes("@")} type="submit">{loading ? "Sending…" : authIntent === "signin" ? "Sign in" : "Sign up"}</Primary></Actions></form><p className="auth-switch">{authIntent === "signin" ? <>New here? <button type="button" onClick={() => setAuthIntent("signup")}>Sign up</button></> : <>Already have an account? <button type="button" onClick={() => setAuthIntent("signin")}>Sign in</button></>}</p><div className="divider">or</div><a className="journey-button secondary google-button" href="/api/auth/google"><GoogleMark />Continue with Google</a></Shell>;
+  if (step === 0) {
+    const isPassword = authMode === "password";
+    const subtitle = authIntent === "signin"
+      ? (isPassword ? "Enter the email and password on your Corgi account." : "Enter the email on your Corgi account and we’ll send you a sign-in link.")
+      : (isPassword ? "Sign up with your email and a password to create a profile for conversations at Corgi." : "Sign up to create a profile for conversations at Corgi.");
+    const canSubmit = isPassword
+      ? (email.includes("@") && password.length >= (authIntent === "signup" ? 8 : 1) && (authIntent === "signin" || password === confirmPassword))
+      : email.includes("@");
+    const buttonLabel = loading ? (isPassword ? "Please wait…" : "Sending…") : authIntent === "signin" ? "Sign in" : "Sign up";
+    return <Shell step={0}><Header eyebrow="Let’s start" title={authIntent === "signin" ? "Sign in to Corgi." : "Start an introduction."}>{subtitle}</Header>{setup === "setup_required" && <aside className="setup-banner"><strong>Database setup needed</strong><span>You can review the flow, but accounts and interactions will not be saved until Supabase is connected.</span></aside>}<form onSubmit={isPassword ? submitPassword : startEmail}><div className="journey-stack"><Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />{isPassword && <Field label="Password" type="password" autoComplete={authIntent === "signin" ? "current-password" : "new-password"} required value={password} onChange={(e) => setPassword(e.target.value)} />}{isPassword && authIntent === "signup" && <Field label="Confirm password" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />}</div>{isPassword && authIntent === "signup" && <p className="preview-note">Use at least 8 characters.</p>}{error && <p className="journey-error">{error}</p>}{notice && <p className="inline-status">{notice}</p>}<Actions><Primary disabled={loading || !canSubmit} type="submit">{buttonLabel}</Primary></Actions></form><p className="auth-switch">{authIntent === "signin" ? <>New here? <button type="button" onClick={() => { setAuthIntent("signup"); setError(""); setNotice(""); }}>Sign up</button></> : <>Already have an account? <button type="button" onClick={() => { setAuthIntent("signin"); setError(""); setNotice(""); }}>Sign in</button></>}</p><div className="divider">or</div><a className="journey-button secondary google-button" href="/api/auth/google"><GoogleMark />Continue with Google</a></Shell>;
+  }
   if (step === 1) {
     const masked = email.replace(/^(.).+(@.*)$/, "$1•••$2");
     if (authMode === "magiclink") return <Shell step={1}><Header eyebrow="Check your email" title="Click your sign-in link.">We emailed a secure sign-in link to {masked}. Open it on this device and Corgi brings you right back here, signed in.</Header><Actions><Secondary type="button" onClick={() => jsonPost("/api/auth/start", { email }).then(() => setNotice("A new link is on its way.")).catch(() => setError("We could not resend the link."))}>Resend link</Secondary><Quiet type="button" onClick={() => go(0)}>Use a different email</Quiet></Actions>{notice && <p className="inline-status">{notice}</p>}{error && <p className="journey-error">{error}</p>}</Shell>;
