@@ -1,4 +1,5 @@
-import { ExaOnboarding } from "@/components/ExaOnboarding";
+import { LandingPage } from "@/components/LandingPage";
+
 export default function Page() {
-  return <ExaOnboarding />;
+  return <LandingPage />;
 }

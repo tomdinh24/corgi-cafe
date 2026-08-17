@@ -8,11 +8,20 @@ import {
 } from "@corgi/onboarding-shared";
 import { reserveExaSearches } from "../../../lib/budget";
 import { searchExa } from "../../../lib/provider";
+import { createCorgiServerClient, getSupabaseConfig } from "../../../lib/supabase";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const sessionToken = readRequestCookie(request, "corgi_exa_otp");
-  if (!verifyOtpState(sessionToken, "exa", getSessionSecret()))
+  let authenticated = verifyOtpState(sessionToken, "exa", getSessionSecret());
+  let memberId: string | undefined;
+  if (!authenticated && getSupabaseConfig().mode === "configured") {
+    const supabase = await createCorgiServerClient();
+    const { data } = await supabase!.auth.getUser();
+    authenticated = Boolean(data.user);
+    memberId = data.user?.id;
+  }
+  if (!authenticated)
     return NextResponse.json(
       {
         status: "error",
@@ -41,7 +50,8 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
-  if (!reserveExaSearches(sessionToken!, 1))
+  const budgetKey = sessionToken ?? memberId ?? "authenticated";
+  if (!reserveExaSearches(budgetKey, 1))
     return NextResponse.json(
       {
         status: "manual_only",

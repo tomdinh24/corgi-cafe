@@ -1,1018 +1,294 @@
 "use client";
 
-import { useState } from "react";
-import {
-  AppShell,
-  Button,
-  ButtonRow,
-  CheckChoice,
-  Choice,
-  Eyebrow,
-  Field,
-  Intro,
-  Notice,
-  ProfileSourceList,
-  SourceBadge,
-  Stack,
-  TextArea,
-  Title,
-  emptyDraft,
-  recordComparisonEvent,
-  type PersonCandidate,
-  type ProfileDraft,
-} from "@corgi/onboarding-shared";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import type { PersonCandidate } from "@corgi/onboarding-shared";
+import { SiteHeader } from "./SiteHeader";
 
-type Path = "connect" | "community" | "later" | "";
+type SetupMode = "checking" | "configured" | "setup_required";
+type Terminal = "" | "community" | "later" | "pass" | "not_met" | "notify" | "finished";
+type LinkKind = "linkedin_identifier" | "website" | "github" | "social";
+
+const topicOptions = ["Building community", "Creative projects", "Product & technology", "Career stories", "AI & products", "First customers", "Fundraising", "SF life"];
+
+type Counterpart = { firstName: string; roleTitle: string; currentWork: string; reason: string };
+type PostLink = { kind: string; url: string; host: string };
+
+// Shown only when no database is connected (preview mode), so the flow stays demoable without
+// Supabase. When configured, every field below comes from the real matcher + RPCs instead.
+const PREVIEW_COUNTERPART: Counterpart = {
+  firstName: "Rowan",
+  roleTitle: "Community program designer · Hospitality",
+  currentWork: "",
+  reason: "You’re both thinking about how small gatherings can feel easier to join. Rowan has hosted them; you’re deciding how much structure helps.",
+};
+const PREVIEW_LINKS: PostLink[] = [
+  { kind: "website", url: "rowan-studio.example", host: "rowan-studio.example" },
+  { kind: "social", url: "@rowan.gathers", host: "instagram.com" },
+];
+
+function GoogleMark() {
+  return <svg className="google-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.8 3-4.3 3-7.3Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.5L15.4 17c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 13.9A6 6 0 0 1 6.1 12c0-.7.1-1.3.3-1.9V7.5H3.1A10 10 0 0 0 2 12c0 1.6.4 3.1 1.1 4.5l3.3-2.6Z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.8A9.7 9.7 0 0 0 12 2a10 10 0 0 0-8.9 5.5l3.3 2.6A6 6 0 0 1 12 6Z"/></svg>;
+}
+
+
+function Header({ eyebrow, title, children }: { eyebrow: string; title: ReactNode; children?: ReactNode }) {
+  return <><p className="journey-eyebrow">{eyebrow}</p><h1>{title}</h1>{children && <p className="journey-intro">{children}</p>}</>;
+}
+
+function Actions({ children }: { children: ReactNode }) { return <div className="journey-actions">{children}</div>; }
+function Primary(props: React.ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`journey-button primary ${props.className ?? ""}`}>{props.children}</button>; }
+function Secondary(props: React.ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`journey-button secondary ${props.className ?? ""}`}>{props.children}</button>; }
+function Quiet(props: React.ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className="journey-button quiet">{props.children}</button>; }
+function Field({ label, hint, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) { const id = props.id ?? label.toLowerCase().replace(/\W+/g, "-"); return <label className="journey-field" htmlFor={id}><span>{label}</span>{hint && <small>{hint}</small>}<input {...props} id={id} /></label>; }
+function TextBox({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) { const id = props.id ?? label.toLowerCase().replace(/\W+/g, "-"); return <label className="journey-field" htmlFor={id}><span>{label}</span><textarea {...props} id={id} /></label>; }
+
+async function jsonPost(path: string, body: unknown) {
+  const response = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || "Something went wrong. Try again.");
+  return data;
+}
+
+async function jsonGet(path: string) {
+  const response = await fetch(path);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || "Something went wrong. Try again.");
+  return data;
+}
+
 export function ExaOnboarding() {
+  const pathname = usePathname();
+  const router = useRouter();
   const [step, setStep] = useState(0);
+  const [setup, setSetup] = useState<SetupMode>("checking");
+  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink">("checking");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [authIntent, setAuthIntent] = useState<"signup" | "signin">(() => (pathname === "/sign-in" ? "signin" : "signup"));
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [location, setLocation] = useState("");
+  const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
-  const [roleTitle, setRoleTitle] = useState("");
-  const [publicUrl, setPublicUrl] = useState("");
+  const [about, setAbout] = useState("");
+  const [currentWork, setCurrentWork] = useState("");
+  const [favoriteDrink, setFavoriteDrink] = useState("");
+  const [links, setLinks] = useState<Record<LinkKind, string>>({ linkedin_identifier: "", website: "", github: "", social: "" });
   const [candidates, setCandidates] = useState<PersonCandidate[]>([]);
-  const [selectedCandidateId, setSelectedCandidateId] = useState("");
-  const [draft, setDraft] = useState<ProfileDraft>(() => emptyDraft(""));
-  const [loading, setLoading] = useState(false);
-  const [path, setPath] = useState<Path>("");
-  const [intents, setIntents] = useState<string[]>([]);
+  const [candidateId, setCandidateId] = useState("");
+  const [candidateSource, setCandidateSource] = useState<{ kind: LinkKind; url: string } | null>(null);
+  const [branch, setBranch] = useState<"cafe" | "community" | "later">("cafe");
+  const [terminal, setTerminal] = useState<Terminal>("");
+  const [conversationMode, setConversationMode] = useState<"specific" | "open">("specific");
+  const [topics, setTopics] = useState<string[]>([topicOptions[0]]);
+  const [otherTopic, setOtherTopic] = useState("");
   const [useful, setUseful] = useState("");
   const [offer, setOffer] = useState("");
-  const [prefs, setPrefs] = useState({
-    open: false,
-    fundraising: false,
-    recruiting: false,
-    sales: false,
-    notify: false,
-  });
-  const [visibility, setVisibility] = useState("People at Corgi");
-  const [expiration, setExpiration] = useState("60 minutes");
-  const next = () => {
-    recordComparisonEvent("step_completed", { variation: "exa", step });
-    setStep((v) => v + 1);
-    scrollTo(0, 0);
+  const [commercial, setCommercial] = useState({ fundraising: false, recruiting: false, sales: false });
+  const [photoSelf, setPhotoSelf] = useState(false);
+  const [photoNearby, setPhotoNearby] = useState(false);
+  const [feedback, setFeedback] = useState<"not_useful" | "okay" | "useful" | "">("");
+  const [sessionId, setSessionId] = useState("");
+  const [recommendationId, setRecommendationId] = useState("");
+  const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
+  const [postLinks, setPostLinks] = useState<PostLink[]>([]);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  // True until we know whether this visitor already has a live session (and a claimed profile) to
+  // resume into — gates the very first paint so we never flash the sign-up screen before jumping
+  // straight to a resumed session.
+  const [resuming, setResuming] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/config").then((r) => r.json()).then(async (data) => {
+      setSetup(data.supabase);
+      setAuthMode(data.authMode ?? "preview");
+      if (data.authMode === "magiclink" || data.authMode === "dev") {
+        // Already signed in (magic-link return, or a live session from earlier tonight)? Resume
+        // where they left off instead of re-running onboarding from scratch.
+        try {
+          const status = await fetch("/api/auth/status").then((r) => r.json());
+          if (!status.authenticated) return;
+          setEmail(status.email ?? "");
+          const profile = status.profile;
+          if (profile) {
+            setFirstName(profile.firstName ?? ""); setLastName(profile.lastName ?? "");
+            setLocation(profile.broadLocation ?? ""); setRole(profile.roleTitle ?? ""); setCompany(profile.companyOrProject ?? "");
+            setAbout(profile.aboutMe ?? ""); setCurrentWork(profile.currentWork ?? ""); setFavoriteDrink(profile.favoriteDrink ?? "");
+          }
+          setStep((current) => (current !== 0 ? current : profile?.confirmed ? 7 : 2));
+        } catch { /* stay on the email step */ }
+      }
+    }).catch(() => { setSetup("setup_required"); setAuthMode("preview"); }).finally(() => setResuming(false));
+  }, []);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step, terminal]);
+  useEffect(() => {
+    if (resuming) return;
+    // Keep the address bar in sync with the section of the flow: auth (sign-up/sign-in),
+    // onboarding (profile creation), and home (everything after the profile is claimed).
+    const section = terminal ? "/home" : step <= 1 ? (authIntent === "signin" ? "/sign-in" : "/sign-up") : step <= 6 ? "/onboarding" : "/home";
+    if (pathname !== section) router.replace(section, { scroll: false });
+  }, [step, terminal, authIntent, resuming, pathname, router]);
+  useEffect(() => {
+    const heading = document.querySelector<HTMLElement>(".journey-screen h1");
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }, [step, terminal]);
+  const person = counterpart ?? PREVIEW_COUNTERPART;
+  const personInitial = (person.firstName[0] ?? "?").toUpperCase();
+  // Both eligibility checks are simulated as passing in this build (see step 8). Once real
+  // order/presence checks exist, either flag can flip false and the gate screen shows again.
+  const orderConfirmedToday = true;
+  const atCafe = true;
+  const goMeetSomeone = () => go(orderConfirmedToday && atCafe ? 9 : 8);
+  const cleanLinks = useMemo(() => Object.entries(links).flatMap(([kind, url]) => url.trim() ? [{ kind: kind as LinkKind, url: url.trim() }] : []), [links]);
+  const go = (next: number) => { setError(""); setNotice(""); setStep(next); };
+  const back = () => go(Math.max(0, step - 1));
+  const save = async (body: unknown) => { const result = await jsonPost("/api/persist", body); if (result.status === "preview_only") setNotice("Supabase is not connected. This preview continues without saving."); return result; };
+  const record = (eventName: string, context: Record<string, string | number | boolean | null> = {}) => {
+    void save({ kind: "event", event: { eventName, stepId: `matching_${step}`, context } }).catch(() => undefined);
   };
-  const back = () => {
-    setStep((v) => Math.max(0, v - 1));
-    scrollTo(0, 0);
+  const accountInitials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
+  const logout = async (redirectTo = "/sign-in") => {
+    setAccountMenuOpen(false);
+    try { await fetch("/api/auth/logout", { method: "POST" }); } finally { window.location.href = redirectTo; }
   };
-  const input = {
-    identity: { email, firstName, lastName },
-    location,
-    seedWorkContext: [roleTitle, company].filter(Boolean).join(" at "),
-    urls: publicUrl ? [publicUrl] : [],
+  function Shell({ step: shellStep, children, wide = false, hideProgress = false }: { step: number; children: ReactNode; wide?: boolean; hideProgress?: boolean }) {
+    const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
+    const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
+    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu"><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill">SF DeFi · Corgi Cafe</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
+  }
+  // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
+  const saveDecision = (choice: "continue" | "pass") => {
+    if (!recommendationId) return;
+    void save({ kind: "decision", decision: { recommendationId, choice } }).catch(() => undefined);
   };
-  const manualFallback = (message?: string) => {
-    setDraft(emptyDraft(location));
-    setError(message ?? "Add your background yourself.");
-    setStep(12);
-    recordComparisonEvent("provider_outcome", {
-      variation: "exa",
-      outcome: "manual",
-    });
+  const saveMeeting = async (answer: "met" | "not_yet") => {
+    if (!recommendationId) return;
+    await save({ kind: "meeting", meeting: { recommendationId, answer } }).catch(() => undefined);
   };
-  const verify = async () => {
-    try {
-      const response = await fetch("/api/demo/verify-otp", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code: otp }),
-      });
-      if (!response.ok)
-        return setError("That code does not match. Try 424242.");
-      setError("");
-      next();
-    } catch {
-      setError(
-        "We could not verify the demo code. Check your connection and try again.",
-      );
-    }
+  const saveFeedback = (rating: "not_useful" | "okay" | "useful") => {
+    if (!recommendationId) return;
+    void save({ kind: "feedback", feedback: { recommendationId, rating } }).catch(() => undefined);
+  };
+
+  const startEmail = async (event: FormEvent) => {
+    event.preventDefault(); setLoading(true); setError("");
+    try { const result = await jsonPost("/api/auth/start", { email }); if (result.mode === "preview") setNotice(result.message); go(1); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "We could not send a code."); }
+    finally { setLoading(false); }
+  };
+  const verify = async (event: FormEvent) => {
+    event.preventDefault(); setLoading(true); setError("");
+    try { const result = await jsonPost("/api/auth/verify", { email, token: otp }); if (result.mode === "preview") setNotice("Preview mode: nothing will be saved until Supabase is connected."); go(2); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "That code did not work."); }
+    finally { setLoading(false); }
   };
   const search = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
-      const response = await fetch("/api/search", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input }),
-      });
-      const body = await response.json();
-      if (
-        !response.ok ||
-        body.status !== "draft_ready" ||
-        !body.candidates?.length
-      )
-        return manualFallback(body.message);
-      setCandidates(body.candidates);
-      setSelectedCandidateId("");
-      setStep(11);
-      recordComparisonEvent("provider_outcome", {
-        variation: "exa",
-        outcome: "candidates",
-      });
-    } catch {
-      manualFallback(
-        "Exa search is unavailable. Add your background yourself.",
-      );
-    } finally {
-      setLoading(false);
-    }
+      const response = await jsonPost("/api/search", { input: { identity: { email, firstName, lastName }, location, seedWorkContext: `${role} at ${company}`, urls: [] } });
+      setCandidates(response.candidates ?? []); setCandidateId("");
+      if (!(response.candidates ?? []).length) setNotice("No reliable profile appeared. You can continue with the details you entered.");
+    } catch (reason) { setNotice(reason instanceof Error ? reason.message : "Profile search is unavailable. Continue with your details."); }
+    finally { setLoading(false); }
   };
-  const confirmCandidate = () => {
-    const candidate = candidates.find((item) => item.id === selectedCandidateId);
+  const chooseCandidate = () => {
+    const candidate = candidates.find((item) => item.id === candidateId);
     if (!candidate) return;
-    const found = (value: string | undefined, fallback: string) =>
-      value
-        ? {
-            value,
-            attribution: "found_on_source" as const,
-            sourceUrl: candidate.profileUrl,
-            confirmed: false,
-          }
-        : {
-            value: fallback,
-            attribution: "entered_by_you" as const,
-            confirmed: false,
-          };
-    const nextDraft = emptyDraft(candidate.location ?? location);
-    setFirstName(candidate.firstName);
-    setLastName(candidate.lastName);
-    setDraft({
-      ...nextDraft,
-      role: found(candidate.title, roleTitle),
-      companyOrProject: found(candidate.company, company),
-      location: found(candidate.location, location),
-    });
-    setError("");
-    setStep(12);
-    recordComparisonEvent("provider_outcome", {
-      variation: "exa",
-      outcome: "identity_confirmed",
-    });
-  };
-  const setField = (
-    key: "role" | "companyOrProject" | "location" | "functionalArea" | "stage",
-    value: string,
-  ) => {
-    setDraft(
-      (d) =>
-        ({
-          ...d,
-          [key]: {
-            ...(d[key] ?? { confirmed: false }),
-            value,
-            attribution: "edited_by_you",
-          },
-        }) as ProfileDraft,
-    );
-    recordComparisonEvent("field_corrected", { variation: "exa" });
-  };
-  const badgeKind = (attribution?: string) =>
-    attribution === "found_on_source"
-      ? ("found" as const)
-      : attribution === "edited_by_you"
-        ? ("edited" as const)
-        : attribution === "suggested_by_corgi"
-          ? ("suggested" as const)
-          : ("entered" as const);
-  const sourceHost = (sourceUrl?: string) => {
-    try {
-      return sourceUrl
-        ? new URL(sourceUrl).hostname.replace(/^www\./, "")
-        : undefined;
-    } catch {
-      return undefined;
+    if (!candidate.identifierOnly && candidate.mayExtractFacts) {
+      setRole(candidate.title || role); setCompany(candidate.company || company); setLocation(candidate.location || location);
+      setCandidateSource({ kind: "website", url: candidate.profileUrl });
+    } else {
+      setCandidateSource({ kind: "linkedin_identifier", url: candidate.profileUrl });
+      setLinks((current) => ({ ...current, linkedin_identifier: candidate.profileUrl }));
     }
+    go(4);
   };
-  const confirm = () => {
-    const suggested = draft.suggestedIntents.length
-      ? draft.suggestedIntents.map((item) => item.value)
-      : [
-          "Compare notes with another builder",
-          "Get practical advice",
-          "Talk through a current challenge",
-        ];
-    setIntents(suggested);
-    setDraft((d) => ({
-      ...d,
-      role: { ...d.role, confirmed: true },
-      companyOrProject: { ...d.companyOrProject, confirmed: true },
-      location: { ...d.location, confirmed: true },
-      functionalArea: { ...d.functionalArea, confirmed: true },
-      stage: d.stage ? { ...d.stage, confirmed: true } : undefined,
-      focusAreas: d.focusAreas
-        .filter((x) => x.value)
-        .map((x) => ({ ...x, confirmed: true })),
-      contributionTopics: d.contributionTopics
-        .filter((x) => x.value)
-        .map((x) => ({ ...x, confirmed: true })),
-      suggestedIntents: d.suggestedIntents
-        .filter((x) => x.value)
-        .map((x) => ({ ...x, confirmed: true })),
-      confirmationState: "confirmed",
-    }));
-    next();
+  const persistProfile = async () => {
+    setLoading(true); setError("");
+    try {
+      await save({ kind: "profile", profile: { firstName, lastName, broadLocation: location, roleTitle: role, companyOrProject: company, aboutMe: about, currentWork, favoriteDrink, sources: [...cleanLinks, ...(candidateSource && !cleanLinks.some((item) => item.url === candidateSource.url) ? [candidateSource] : [])] } });
+      go(7);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Your profile could not be saved."); }
+    finally { setLoading(false); }
   };
-  const toggleIntent = (value: string) =>
-    setIntents((items) =>
-      items.includes(value)
-        ? items.filter((x) => x !== value)
-        : [...items, value],
-    );
+  const chooseBranch = async () => {
+    if (branch === "community") { try { await save({ kind: "community_interest" }); } catch { /* screen remains truthful */ } setTerminal("community"); return; }
+    if (branch === "later") { record("onboarding_deferred"); await logout("/"); return; }
+    goMeetSomeone();
+  };
+  const startSession = async () => {
+    setLoading(true); setError("");
+    try {
+      const resolvedTopics = topics.map((topic) => (topic === "Other" ? otherTopic.trim() : topic)).filter(Boolean);
+      const result = await save({ kind: "session", session: { orderConfirmedToday: true, atCafe: true, conversationMode, topics: conversationMode === "specific" ? resolvedTopics : [], usefulContext: useful, offerContext: offer, boundaries: commercial } });
+      const sid = typeof result?.sessionId === "string" ? result.sessionId : "";
+      setSessionId(sid);
+      go(10);
+      await runMatch(sid);
+    }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Your intro session could not be started."); go(9); }
+    finally { setLoading(false); }
+  };
+  // Ask the reviewed matcher for one worthwhile counterpart. No fabricated match ever reaches a
+  // configured (real-database) session: it's either a real pairing, an honest no-match, or — only
+  // when no database is connected — a clearly-labelled preview introduction.
+  const runMatch = async (sid: string) => {
+    const target = sid || sessionId;
+    if (setup !== "configured" || !target) {
+      setCounterpart(PREVIEW_COUNTERPART); setRecommendationId("");
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      setStep((value) => (value === 10 ? 11 : value));
+      return;
+    }
+    try {
+      const match = await jsonPost("/api/match", { sessionId: target });
+      if (match.status === "no_match") { go(18); return; }
+      if (match.status === "preview") { setCounterpart(PREVIEW_COUNTERPART); setRecommendationId(""); go(11); return; }
+      const rec = match.recommendationId as string;
+      setRecommendationId(rec);
+      const person = await jsonGet(`/api/introduction/${rec}`);
+      setCounterpart({ firstName: person.firstName ?? "Someone", roleTitle: person.roleTitle ?? "", currentWork: person.currentWork ?? "", reason: person.reason ?? "" });
+      go(11);
+    } catch { go(18); }
+  };
+  const loadLinks = async () => {
+    if (setup !== "configured" || !recommendationId) { setPostLinks(PREVIEW_LINKS); return; }
+    try {
+      const result = await jsonGet(`/api/introduction/${recommendationId}/links`);
+      setPostLinks(Array.isArray(result.links) ? result.links : []);
+    } catch { setPostLinks([]); }
+  };
 
-  if (step === 0)
-    return (
-      <AppShell variant="Exa" step={1}>
-        <Eyebrow>Exa comparison</Eyebrow>
-        <Title>Set up your intro session.</Title>
-        <Intro>
-          Corgi can use Exa to find possible professional profiles. You confirm
-          which one is yours before reviewing any profile details.
-        </Intro>
-        <Notice title="Internal prototype">
-          This walkthrough does not create an account or save anything.
-        </Notice>
-        <ButtonRow>
-          <Button onClick={next}>Get started</Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 1)
-    return (
-      <AppShell variant="Exa" step={2}>
-        <Eyebrow>Your sign-in</Eyebrow>
-        <Title>What’s your email?</Title>
-        <Intro>
-          We’ll use it to verify this walkthrough. No message will be sent.
-        </Intro>
-        <Stack>
-          <Field
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Stack>
-        <ButtonRow>
-          <Button disabled={!email.includes("@")} onClick={next}>
-            Continue
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 2)
-    return (
-      <AppShell variant="Exa" step={3}>
-        <Eyebrow>Quick check</Eyebrow>
-        <Title>Enter the demo code.</Title>
-        <Intro>
-          Use 424242. In a real experience, we would email it to you.
-        </Intro>
-        <Stack>
-          <Field
-            label="6-digit code"
-            inputMode="numeric"
-            value={otp}
-            onChange={(e) =>
-              setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
-          />
-          {error && (
-            <Notice title="Try that again" tone="orange">
-              {error}
-            </Notice>
-          )}
-        </Stack>
-        <ButtonRow>
-          <Button disabled={otp.length !== 6} onClick={verify}>
-            Verify
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 3)
-    return (
-      <AppShell variant="Exa" step={4}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>What’s your first name?</Title>
-        <Intro>Use the name people at Corgi know you by.</Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (firstName.trim()) next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="First name"
-              autoComplete="given-name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit" disabled={!firstName.trim()}>
-              Continue
-            </Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 4)
-    return (
-      <AppShell variant="Exa" step={5}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>What’s your last name?</Title>
-        <Intro>This helps distinguish you from people with similar names.</Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (lastName.trim()) next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="Last name"
-              autoComplete="family-name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit" disabled={!lastName.trim()}>
-              Continue
-            </Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 5)
-    return (
-      <AppShell variant="Exa" step={6}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>Where are you based?</Title>
-        <Intro>
-          Share only a broad city or region. Corgi does not track your location.
-        </Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (location.trim()) next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="City or region"
-              autoComplete="address-level2"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit" disabled={!location.trim()}>
-              Continue
-            </Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 6)
-    return (
-      <AppShell variant="Exa" step={7}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>What company are you with?</Title>
-        <Intro>Your current company helps narrow the search.</Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (company.trim()) next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="Company"
-              autoComplete="organization"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit" disabled={!company.trim()}>
-              Continue
-            </Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 7)
-    return (
-      <AppShell variant="Exa" step={8}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>What is your role or title?</Title>
-        <Intro>Use your current professional title.</Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (roleTitle.trim()) next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="Role or title"
-              autoComplete="organization-title"
-              value={roleTitle}
-              onChange={(event) => setRoleTitle(event.target.value)}
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit" disabled={!roleTitle.trim()}>
-              Continue
-            </Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 8)
-    return (
-      <AppShell variant="Exa" step={9}>
-        <Eyebrow>About you</Eyebrow>
-        <Title>Do you have a public profile?</Title>
-        <Intro>
-          Add a personal site, portfolio, GitHub, or another public profile.
-          This is optional.
-        </Intro>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            next();
-          }}
-        >
-          <Stack>
-            <Field
-              label="Public URL"
-              type="url"
-              value={publicUrl}
-              onChange={(event) => setPublicUrl(event.target.value)}
-              placeholder="https://..."
-            />
-          </Stack>
-          <ButtonRow>
-            <Button type="submit">Continue</Button>
-            <Button type="button" kind="quiet" onClick={back}>
-              Back
-            </Button>
-          </ButtonRow>
-        </form>
-      </AppShell>
-    );
-  if (step === 9)
-    return (
-      <AppShell variant="Exa" step={10}>
-        <Eyebrow>Before we look</Eyebrow>
-        <Title>You confirm which profile is yours.</Title>
-        <Intro>
-          Exa may receive your name, broad location, company, role, and public
-          URL to find professional profiles. Results may include information
-          aggregated from LinkedIn, but Corgi never fetches LinkedIn pages.
-          Associated profile images may load from their public image hosts.
-        </Intro>
-        <Notice title="You stay in control">
-          Results may belong to someone else. Nothing is confirmed until you
-          select your profile, and you can edit every imported field.
-        </Notice>
-        <ButtonRow>
-          <Button onClick={next}>Find my profile</Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 10)
-    return (
-      <AppShell variant="Exa" step={11}>
-        <Eyebrow>Source discovery</Eyebrow>
-        <Title>Ready to look?</Title>
-        <Intro>
-          Exa will search public professional data and show up to ten possible
-          people for you to confirm.
-        </Intro>
-        {loading && (
-          <div className="loading">
-            <span className="status-dot" /> Looking for your profile…
-          </div>
-        )}
-        {error && (
-          <Notice title="Manual entry is ready" tone="orange">
-            {error}
-          </Notice>
-        )}
-        <ButtonRow>
-          <Button disabled={loading} onClick={search}>
-            Search with Exa
-          </Button>
-          <Button
-            kind="secondary"
-            onClick={() =>
-              manualFallback("You chose to enter your background yourself.")
-            }
-          >
-            Enter it myself
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 11)
-    return (
-      <AppShell variant="Exa" step={12}>
-        <Eyebrow>Profile match</Eyebrow>
-        <Title>Do you see yourself here?</Title>
-        <Intro>
-          Exa found up to 10 possible people. Select one profile to confirm
-          your identity. Nothing is verified until you choose it.
-        </Intro>
-        <fieldset className="person-picker stack">
-          <legend className="sr-only">Choose your professional profile</legend>
-          <ol className="person-list">
-            {candidates.slice(0, 10).map((candidate) => {
-              const name = `${candidate.firstName} ${candidate.lastName}`;
-              const initials = `${candidate.firstName[0]}${candidate.lastName[0]}`;
-              return (
-                <li
-                  className={`person-card ${
-                    selectedCandidateId === candidate.id ? "selected" : ""
-                  }`}
-                  key={candidate.id}
-                >
-                  <div className="person-avatar" aria-hidden="true">
-                    <span>{initials}</span>
-                    {candidate.imageUrl && (
-                      <img
-                        src={candidate.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                        onError={(event) => {
-                          event.currentTarget.hidden = true;
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="person-details">
-                    <strong>{name}</strong>
-                    {(candidate.title || candidate.company) && (
-                      <p>
-                        {[candidate.title, candidate.company]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    )}
-                    {candidate.location && <p>{candidate.location}</p>}
-                    <a
-                      href={candidate.profileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Open public profile for ${name} in a new tab`}
-                    >
-                      {candidate.profileUrl}
-                    </a>
-                    <small>
-                      {candidate.identifierOnly
-                        ? "LinkedIn profile · Identity only"
-                        : `${candidate.sourceHost} · Public professional profile`}
-                    </small>
-                  </div>
-                  <label className="person-select">
-                    <input
-                      type="radio"
-                      name="person-candidate"
-                      value={candidate.id}
-                      checked={selectedCandidateId === candidate.id}
-                      onChange={() => setSelectedCandidateId(candidate.id)}
-                    />
-                    <span>This is me</span>
-                  </label>
-                </li>
-              );
-            })}
-          </ol>
-        </fieldset>
-        <ButtonRow>
-          <Button disabled={!selectedCandidateId} onClick={confirmCandidate}>
-            Confirm this profile
-          </Button>
-          <Button
-            kind="secondary"
-            onClick={() => manualFallback("None of these profiles were yours.")}
-          >
-            None are mine
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 12)
-    return (
-      <AppShell variant="Exa" step={13}>
-        <Eyebrow>Profile check</Eyebrow>
-        <Title>Does this sound like you?</Title>
-        <Intro>
-          Exa returned structured public professional fields. Edit or clear
-          anything before confirming.
-        </Intro>
-        {error && (
-          <Notice title="Add it yourself" tone="orange">
-            {error}
-          </Notice>
-        )}
-        <div className="profile-grid">
-          {[
-            ["Role", "role"],
-            ["Company", "companyOrProject"],
-            ["Location", "location"],
-            ["Area", "functionalArea"],
-            ["Stage", "stage"],
-          ].map(([label, key]) => (
-            <div className="profile-row" key={key}>
-              <label>{label}</label>
-              <input
-                aria-label={label}
-                value={
-                  (
-                    draft[key as keyof ProfileDraft] as
-                      { value?: string } | undefined
-                  )?.value ?? ""
-                }
-                onChange={(e) =>
-                  setField(
-                    key as
-                      | "role"
-                      | "companyOrProject"
-                      | "location"
-                      | "functionalArea"
-                      | "stage",
-                    e.target.value,
-                  )
-                }
-              />
-              <SourceBadge
-                kind={badgeKind(
-                  draft[
-                    key as
-                      | "role"
-                      | "companyOrProject"
-                      | "location"
-                      | "functionalArea"
-                  ]?.attribution,
-                )}
-                host={sourceHost(
-                  draft[
-                    key as
-                      | "role"
-                      | "companyOrProject"
-                      | "location"
-                      | "functionalArea"
-                  ]?.sourceUrl,
-                )}
-              />
-            </div>
-          ))}
-          <div className="profile-row">
-            <label>Focus areas</label>
-            <input
-              aria-label="Focus areas"
-              value={draft.focusAreas.map((x) => x.value).join(", ")}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  focusAreas: e.target.value.split(",").map((value) => ({
-                    value: value.trim(),
-                    attribution: "edited_by_you",
-                    confirmed: false,
-                  })),
-                })
-              }
-            />
-            <ProfileSourceList items={draft.focusAreas} />
-          </div>
-          <div className="profile-row">
-            <label>Can help with</label>
-            <input
-              aria-label="Can help with"
-              value={draft.contributionTopics.map((x) => x.value).join(", ")}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  contributionTopics: e.target.value
-                    .split(",")
-                    .map((value) => ({
-                      value: value.trim(),
-                      attribution: "edited_by_you",
-                      confirmed: false,
-                    })),
-                })
-              }
-            />
-            <ProfileSourceList items={draft.contributionTopics} />
-          </div>
-        </div>
-        <ButtonRow>
-          <Button
-            disabled={
-              !draft.role.value.trim() ||
-              !draft.companyOrProject.value.trim() ||
-              !draft.location.value.trim() ||
-              !draft.functionalArea.value.trim() ||
-              !draft.focusAreas.some((item) => item.value.trim()) ||
-              !draft.contributionTopics.some((item) => item.value.trim())
-            }
-            onClick={confirm}
-          >
-            Confirm profile
-          </Button>
-          <Button kind="quiet" onClick={() => (error ? setStep(10) : back())}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 13)
-    return (
-      <AppShell variant="Exa" step={14}>
-        <Eyebrow>For today</Eyebrow>
-        <Title>What would you like to do?</Title>
-        <Stack compact>
-          <Choice
-            title="Connect at Corgi now"
-            detail="Set what you want to talk about and how long you are open."
-            selected={path === "connect"}
-            onClick={() => setPath("connect")}
-          />
-          <Choice
-            title="Record community interest"
-            detail="See what could happen next with the private Corgi community."
-            selected={path === "community"}
-            onClick={() => setPath("community")}
-          />
-          <Choice
-            title="Maybe later"
-            detail="Leave without opening introductions."
-            selected={path === "later"}
-            onClick={() => setPath("later")}
-          />
-        </Stack>
-        <ButtonRow>
-          <Button
-            disabled={!path}
-            onClick={() => (path === "connect" ? next() : setStep(18))}
-          >
-            Continue
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 14)
-    return (
-      <AppShell variant="Exa" step={15}>
-        <Eyebrow>Conversation</Eyebrow>
-        <Title>What do you want to talk about today?</Title>
-        <Intro>
-          These are suggestions, not assumptions. Unselect anything that does
-          not fit.
-        </Intro>
-        <Stack compact>
-          {(draft.suggestedIntents.length
-            ? draft.suggestedIntents.map((x) => x.value)
-            : [
-                "Compare notes with another builder",
-                "Get practical advice",
-                "Talk through a current challenge",
-              ]
-          ).map((value) => (
-            <CheckChoice
-              key={value}
-              label={value}
-              checked={intents.includes(value)}
-              onChange={() => toggleIntent(value)}
-            />
-          ))}
-        </Stack>
-        <Stack>
-          <TextArea
-            label="What would make the conversation useful?"
-            value={useful}
-            onChange={(e) => setUseful(e.target.value)}
-          />
-          <TextArea
-            label="What could you share in return?"
-            value={offer}
-            onChange={(e) => setOffer(e.target.value)}
-          />
-        </Stack>
-        <ButtonRow>
-          <Button
-            disabled={!intents.length || !useful || !offer}
-            onClick={next}
-          >
-            Set preferences
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 15)
-    return (
-      <AppShell variant="Exa" step={16}>
-        <Eyebrow>Your preferences</Eyebrow>
-        <Title>Make the introduction feel right.</Title>
-        <Intro>
-          AI cannot select any of these for you. Commercial conversations start
-          off.
-        </Intro>
-        <Stack compact>
-          <CheckChoice
-            label="I’m open to an introduction now"
-            checked={prefs.open}
-            onChange={() => setPrefs({ ...prefs, open: !prefs.open })}
-          />
-          <CheckChoice
-            label="Fundraising conversations"
-            checked={prefs.fundraising}
-            onChange={() =>
-              setPrefs({ ...prefs, fundraising: !prefs.fundraising })
-            }
-          />
-          <CheckChoice
-            label="Recruiting conversations"
-            checked={prefs.recruiting}
-            onChange={() =>
-              setPrefs({ ...prefs, recruiting: !prefs.recruiting })
-            }
-          />
-          <CheckChoice
-            label="Sales conversations"
-            checked={prefs.sales}
-            onChange={() => setPrefs({ ...prefs, sales: !prefs.sales })}
-          />
-          <CheckChoice
-            label="Notify me in this prototype"
-            detail="Simulated. No message will be sent."
-            checked={prefs.notify}
-            onChange={() => setPrefs({ ...prefs, notify: !prefs.notify })}
-          />
-        </Stack>
-        <Stack>
-          <label className="field">
-            <span>Who can see I’m open?</span>
-            <select
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value)}
-            >
-              <option>People at Corgi</option>
-              <option>Corgi staff only</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Keep me open for</span>
-            <select
-              value={expiration}
-              onChange={(e) => setExpiration(e.target.value)}
-            >
-              <option>30 minutes</option>
-              <option>60 minutes</option>
-              <option>90 minutes</option>
-              <option>Until I leave</option>
-            </select>
-          </label>
-        </Stack>
-        <ButtonRow>
-          <Button disabled={!prefs.open} onClick={next}>
-            Review introduction
-          </Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 16)
-    return (
-      <AppShell variant="Exa" step={17}>
-        <Eyebrow>One last look</Eyebrow>
-        <Title>Ready to be introduced?</Title>
-        <Intro>
-          No recommendation is guaranteed. If no one fits, Corgi should say so
-          honestly.
-        </Intro>
-        <div className="summary">
-          <section>
-            <h2>You</h2>
-            <p>
-              {firstName} {lastName}, {draft.role.value} ·{" "}
-              {draft.companyOrProject.value}
-            </p>
-          </section>
-          <section>
-            <h2>Today</h2>
-            <p>{intents.join(", ")}</p>
-          </section>
-          <section>
-            <h2>Useful conversation</h2>
-            <p>{useful}</p>
-          </section>
-          <section>
-            <h2>You can share</h2>
-            <p>{offer}</p>
-          </section>
-          <section>
-            <h2>Availability and boundaries</h2>
-            <p>
-              Open now for {expiration.toLowerCase()}. Visible to{" "}
-              {visibility.toLowerCase()}. Prototype notifications{" "}
-              {prefs.notify ? "on" : "off"}. Fundraising{" "}
-              {prefs.fundraising ? "on" : "off"}, recruiting{" "}
-              {prefs.recruiting ? "on" : "off"}, sales{" "}
-              {prefs.sales ? "on" : "off"}.
-            </p>
-          </section>
-        </div>
-        <ButtonRow>
-          <Button onClick={next}>Start introductions</Button>
-          <Button kind="quiet" onClick={back}>
-            Back
-          </Button>
-        </ButtonRow>
-      </AppShell>
-    );
-  if (step === 17)
-    return (
-      <AppShell variant="Exa" step={17}>
-        <Eyebrow>You’re ready</Eyebrow>
-        <Title>Ready for recommendations.</Title>
-        <Intro>
-          This prototype stops here. It has not searched for, ranked, or shown
-          another person.
-        </Intro>
-        <Notice title="What would happen next" tone="green">
-          Corgi would look for someone present whose conversation preferences
-          fit yours. There may be no recommendation.
-        </Notice>
-      </AppShell>
-    );
-  return (
-    <AppShell variant="Exa" step={17}>
-      <Eyebrow>Walkthrough complete</Eyebrow>
-      <Title>
-        {path === "community"
-          ? "This is where community interest could go."
-          : "Come back when the timing feels right."}
-      </Title>
-      <Intro>
-        {path === "community"
-          ? "A future experience could continue to the private Corgi community here."
-          : "You can get ready for introductions another time."}
-      </Intro>
-      <Notice title="Nothing was saved">
-        This prototype did not create a profile, submit community interest, or
-        keep your answers.
-      </Notice>
-    </AppShell>
-  );
+  if (resuming) return <Shell step={0} hideProgress><div className="center"><div className="loader" aria-label="Checking your session"><i/><i/><i/></div></div></Shell>;
+
+  if (terminal) {
+    const content = terminal === "community" ? ["Interest recorded", "You’re on the list.", setup === "configured" ? "Corgi recorded your interest in the private community. Membership and access are separate." : "This preview did not save your interest because Supabase is not connected."] : terminal === "later" ? ["Come back anytime", "Your profile is ready.", setup === "configured" ? "Your confirmed profile is saved. Start an intro session during another Cafe visit." : "This preview did not save a profile because Supabase is not connected."] : terminal === "pass" ? ["Introduction ended", "No awkward moment.", "No one is told who passed or why. Any temporary photos are removed promptly."] : terminal === "not_met" ? ["Couldn’t meet this time", "Nothing was recorded.", "Links stay private and temporary photos are removed promptly."] : terminal === "notify" ? ["No introduction yet", "We’ll let you know.", "We’ll email you as soon as Corgi finds someone worth meeting."] : ["All set", "Thanks for showing up.", "Your private feedback helps Corgi make future introductions more useful."];
+    return <Shell step={12}><div className="terminal-mark">✓</div><Header eyebrow={content[0]} title={content[1]}>{content[2]}</Header><Actions><Primary onClick={() => { setTerminal(""); go(7); }}>Back to Corgi</Primary></Actions></Shell>;
+  }
+
+  if (step === 0) return <Shell step={0}><Header eyebrow="Let’s start" title={authIntent === "signin" ? "Sign in to Corgi." : "Start an introduction."}>{authIntent === "signin" ? "Enter the email on your Corgi account and we’ll send you a sign-in link." : "Sign up to create a profile for conversations at Corgi."}</Header>{setup === "setup_required" && <aside className="setup-banner"><strong>Database setup needed</strong><span>You can review the flow, but accounts and interactions will not be saved until Supabase is connected.</span></aside>}<form onSubmit={startEmail}><div className="journey-stack"><Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || !email.includes("@")} type="submit">{loading ? "Sending…" : authIntent === "signin" ? "Sign in" : "Sign up"}</Primary></Actions></form><p className="auth-switch">{authIntent === "signin" ? <>New here? <button type="button" onClick={() => setAuthIntent("signup")}>Sign up</button></> : <>Already have an account? <button type="button" onClick={() => setAuthIntent("signin")}>Sign in</button></>}</p><div className="divider">or</div><a className="journey-button secondary google-button" href="/api/auth/google"><GoogleMark />Continue with Google</a></Shell>;
+  if (step === 1) {
+    const masked = email.replace(/^(.).+(@.*)$/, "$1•••$2");
+    if (authMode === "magiclink") return <Shell step={1}><Header eyebrow="Check your email" title="Click your sign-in link.">We emailed a secure sign-in link to {masked}. Open it on this device and Corgi brings you right back here, signed in.</Header><Actions><Secondary type="button" onClick={() => jsonPost("/api/auth/start", { email }).then(() => setNotice("A new link is on its way.")).catch(() => setError("We could not resend the link."))}>Resend link</Secondary><Quiet type="button" onClick={() => go(0)}>Use a different email</Quiet></Actions>{notice && <p className="inline-status">{notice}</p>}{error && <p className="journey-error">{error}</p>}</Shell>;
+    return <Shell step={1}><Header eyebrow="Check your email" title="Enter your code.">{authMode === "dev" ? "Dev login is on — enter any six-digit code to continue." : `We sent a six-digit code to ${masked}.`}</Header>{authMode === "dev" && <p className="preview-note">Dev login: any six-digit code works.</p>}{setup === "setup_required" && <p className="preview-note">Preview code: <strong>424242</strong>. Nothing will be saved.</p>}<form onSubmit={verify}><div className="journey-stack"><Field label="6-digit code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || otp.length !== 6} type="submit">Verify</Primary><Secondary type="button" onClick={() => jsonPost("/api/auth/start", { email }).then(() => setNotice("A new code was sent.")).catch(() => setError("We could not resend the code."))}>Resend code</Secondary><Quiet type="button" onClick={() => go(0)}>Use a different email</Quiet></Actions>{notice && <p className="inline-status">{notice}</p>}</form></Shell>;
+  }
+  if (step === 2) return <Shell step={2} wide><Header eyebrow="About you" title="A little about you.">These details help us find the profile that feels most like you.</Header><form onSubmit={(e) => { e.preventDefault(); go(3); void search(); }}><div className="journey-grid"><Field label="First name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} /><Field label="Last name" required value={lastName} onChange={(e) => setLastName(e.target.value)} /><Field label="City or region" required value={location} onChange={(e) => setLocation(e.target.value)} /><Field label="Role or title" required value={role} onChange={(e) => setRole(e.target.value)} /><Field label="Company or project" required value={company} onChange={(e) => setCompany(e.target.value)} /></div><Actions><Primary type="submit" disabled={!firstName || !lastName || !location || !role || !company}>Continue</Primary><Quiet type="button" onClick={back}>Back</Quiet></Actions></form></Shell>;
+  if (step === 3) return <Shell step={3} wide><Header eyebrow="Your profile" title="Which profile looks like yours?">Choose the profile that’s you, or skip to add your details.</Header>{loading && <div className="loader" aria-label="Finding your profile"><i/><i/><i/></div>}{!loading && candidates.length > 0 && <><fieldset className="candidate-list"><legend>Choose your profile</legend>{candidates.slice(0, 3).map((candidate) => <label className={`candidate-card ${candidateId === candidate.id ? "selected" : ""}`} key={candidate.id}><input type="radio" name="candidate" checked={candidateId === candidate.id} onChange={() => setCandidateId(candidate.id)} /><span><strong>{candidate.firstName} {candidate.lastName}</strong><small>{[candidate.title, candidate.company].filter(Boolean).join(" · ") || "Public professional profile"}</small></span></label>)}</fieldset><Actions><Primary onClick={chooseCandidate} disabled={!candidateId}>Continue</Primary><Secondary onClick={() => go(4)}>None of these</Secondary><Quiet onClick={back}>Back</Quiet></Actions></>}{!loading && candidates.length === 0 && <><p className="journey-intro">We couldn’t find a public profile to match. Add your details on the next step.</p><Actions><Primary onClick={() => go(4)}>Continue</Primary><Quiet onClick={back}>Back</Quiet></Actions></>}{notice && <p className="inline-status">{notice}</p>}</Shell>;
+  if (step === 4) return <Shell step={4} wide><Header eyebrow="Your profile" title={<>Add your public links <span className="optional-badge">Optional</span></>}>Share any links that help your profile feel more like you.</Header>{notice && <p className="preview-note">{notice}</p>}<div className="journey-stack"><Field label="LinkedIn" type="url" value={links.linkedin_identifier} onChange={(e) => setLinks({ ...links, linkedin_identifier: e.target.value })} /><Field label="Personal or company website" type="url" value={links.website} onChange={(e) => setLinks({ ...links, website: e.target.value })} /><Field label="GitHub" type="url" value={links.github} onChange={(e) => setLinks({ ...links, github: e.target.value })} /><Field label="Other public link" type="url" value={links.social} onChange={(e) => setLinks({ ...links, social: e.target.value })} /></div><Actions><Primary onClick={() => go(5)}>Continue</Primary><Quiet onClick={back}>Back</Quiet></Actions></Shell>;
+  if (step === 5) return <Shell step={5} wide><Header eyebrow="Your profile" title="Here’s how you’ll show up.">Review your profile before you meet anyone.</Header><article className="profile-card"><h2>{firstName} {lastName}</h2><p className="profile-sub">{role} at {company} · {location}</p>{about && <p className="profile-about">{about}</p>}<dl>{currentWork && <div><dt>Working on</dt><dd>{currentWork}</dd></div>}{favoriteDrink && <div><dt>Favorite at Corgi Cafe</dt><dd>{favoriteDrink}</dd></div>}{cleanLinks.length > 0 && <div><dt>Links</dt><dd>{cleanLinks.map((link) => link.kind.replace("_identifier", "")).join(" · ")}</dd></div>}</dl></article>{error && <p className="journey-error">{error}</p>}<Actions><Primary onClick={persistProfile} disabled={loading}>{loading ? "Saving…" : "Confirm profile"}</Primary><Secondary onClick={() => go(6)}>Add more details</Secondary><Quiet onClick={back}>Back</Quiet></Actions></Shell>;
+  if (step === 6) return <Shell step={6} wide><Header eyebrow="Your profile" title="Make your profile feel like you.">Add a few details that can help someone start a good conversation.</Header><div className="journey-stack"><TextBox label="About me" value={about} onChange={(e) => setAbout(e.target.value)} /><Field label="What are you working on?" value={currentWork} onChange={(e) => setCurrentWork(e.target.value)} /><Field label="Favorite drink at Corgi Cafe" value={favoriteDrink} onChange={(e) => setFavoriteDrink(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}{notice && <p className="preview-note">{notice}</p>}<Actions><Primary onClick={persistProfile} disabled={loading}>{loading ? "Saving…" : "Continue to Corgi"}</Primary><Quiet onClick={back}>Back</Quiet></Actions></Shell>;
+  if (step === 7) return <Shell step={7} wide><Header eyebrow="Profile ready" title="What would you like to do next?">Choose what feels right today.</Header><div className="visual-options">{([['cafe','cafe','Meet someone at the Cafe','Find one worthwhile conversation while you’re here.'],['community','community','Join Corgi’s private community','Stay connected with members beyond today’s visit.'],['later','later','Maybe later','Come back whenever it feels right.']] as const).map(([value, art, title, detail]) => <button key={value} type="button" className={`visual-option ${branch === value ? "selected" : ""}`} aria-pressed={branch === value} onClick={() => setBranch(value)}><span className={`option-art ${art}-art`} aria-hidden="true"><i/><i/>{art === "cafe" && <b/>}</span><span><strong>{title}</strong><small>{detail}</small></span></button>)}</div><Actions><Primary onClick={chooseBranch}>Continue</Primary></Actions></Shell>;
+  if (step === 8) return <Shell step={8}><Header eyebrow="Meet at the Cafe" title="Two quick checks">You’ll need both to meet someone here.</Header><div className="eligibility-grid"><article><span>✓</span><div><strong>Ordered here today?</strong><small>Yes, confirmed for this account.</small></div></article><article><span>✓</span><div><strong>At Corgi now?</strong><small>Yes, current Cafe check passed.</small></div></article></div><aside className="ready-strip"><strong>You’re ready.</strong><span>Only the Cafe result is kept, not exact coordinates or movement.</span></aside><Actions><Primary onClick={() => go(9)}>Choose a conversation</Primary></Actions></Shell>;
+  if (step === 9) return <Shell step={9} wide><Header eyebrow="Today at Corgi" title="What type of conversation do you want?"/><div className="journey-stack"><button className={`mode-card ${conversationMode === "specific" ? "selected" : ""}`} onClick={() => setConversationMode("specific")}><strong>I have something in mind</strong><small>Choose a topic for today.</small></button><button className={`mode-card ${conversationMode === "open" ? "selected" : ""}`} onClick={() => setConversationMode("open")}><strong>Just looking to meet interesting people</strong><small>Corgi will still look for a thoughtful fit.</small></button></div><hr className="section-divider" />{conversationMode === "specific" && <section className="topic-panel"><h2>What’s on your mind?</h2><div className="topic-grid">{[...topicOptions, "Other"].map((topic) => <button key={topic} className={topics.includes(topic) ? "selected" : ""} aria-pressed={topics.includes(topic)} onClick={() => setTopics(topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic])}>{topic}</button>)}</div>{topics.includes("Other") && <TextBox label="Tell us what’s on your mind" value={otherTopic} onChange={(e) => setOtherTopic(e.target.value)} />}</section>}<div className="journey-grid intent-details"><TextBox label="What would you like help on?" value={useful} onChange={(e) => setUseful(e.target.value)} /><TextBox label="What can you help with?" value={offer} onChange={(e) => setOffer(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || (conversationMode === "specific" && (topics.length === 0 || (topics.includes("Other") && !otherTopic.trim())))} onClick={startSession}>Continue</Primary></Actions></Shell>;
+  if (step === 10) return <Shell step={10}><div className="loader" aria-label="Finding someone"><i/><i/><i/></div><div className="center"><Header eyebrow="One moment" title="Corgi is finding someone worth meeting.">We’ll only make an introduction when the conversation looks promising.</Header><aside className="community-note"><strong>A quick community note</strong><span>Keep it conversational. No direct fundraising asks or recruiting.</span></aside></div></Shell>;
+  if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div><div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={() => { record("introduction_continue"); saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
+  if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button className={`capture-image ${photoSelf ? "taken" : ""}`} onClick={() => setPhotoSelf(true)}>{photoSelf ? "✓" : "+"}</button><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo taken" : "Photo needed"}</small></article><article><button className={`capture-image nearby ${photoNearby ? "taken" : ""}`} onClick={() => setPhotoNearby(true)}>{photoNearby ? "✓" : "+"}</button><strong>What you can see nearby</strong><small>{photoNearby ? "Photo taken" : "Photo needed"}</small></article></div><p className="pair-note">Only {person.firstName} can see these. They’re temporary. This prototype does not upload photos.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
+  if (step === 14) return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer"><strong>10:00</strong><span>left</span></div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>;
+  if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => <span key={index}><strong>{link.kind === "website" ? "Website" : link.kind === "github" ? "GitHub" : link.kind === "social" ? "Social" : "Link"}</strong>{link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;
+  if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['not_useful','Not useful'],['okay','Okay'],['useful','Useful']] as const).map(([value,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value); }}>{label}</button>)}</div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { record("meet_another_selected"); setFeedback(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { record("intro_session_finished"); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
+  return <Shell step={18}><div className="center"><div className="mail-mark">@</div><Header eyebrow="No introduction yet" title="We’re still looking">We’ll email you when Corgi finds someone worth meeting.</Header><p className="preview-note">Notification delivery is not implemented in this build.</p><Actions><Primary onClick={() => { record("notify_me_requested"); setTerminal("notify"); }}>Notify me</Primary><Quiet onClick={() => go(7)}>Cancel</Quiet></Actions></div></Shell>;
 }

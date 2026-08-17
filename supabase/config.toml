@@ -1,0 +1,46 @@
+project_id = "corgi-cafe"
+
+[api]
+enabled = true
+port = 56321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 56322
+shadow_port = 56320
+major_version = 17
+
+[studio]
+enabled = true
+port = 56323
+
+[inbucket]
+enabled = true
+port = 56324
+
+[analytics]
+enabled = true
+port = 56327
+
+[auth]
+enabled = true
+site_url = "http://localhost:4315"
+additional_redirect_urls = ["http://localhost:4315", "http://localhost:4315/auth/callback", "http://127.0.0.1:4315/auth/callback", "http://localhost:4313", "http://localhost:4313/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+otp_expiry = 3600
+
+# NOTE: sign-in uses magic links (the free-tier default email). Custom email templates and
+# 6-digit codes require a custom SMTP provider — add [auth.email.smtp] and a template here then.
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"
+
