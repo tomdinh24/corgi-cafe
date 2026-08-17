@@ -20,7 +20,7 @@ export default defineConfig({
     { name: "desktop", use: { viewport: { width: 1440, height: 1000 } } },
   ],
   webServer: {
-    command: `npm run build && npm exec --workspace=@corgi/onboarding-exa -- next start -p ${port}`,
+    command: `npm run build && npm exec --workspace=@corgi/cafe-app -- next start -p ${port}`,
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
     // The browser suite exercises the UI in preview mode (no database), so it stays deterministic

@@ -70,7 +70,7 @@ the broader scope.
   external evidence.
 - Do not report a documentation change complete until links, headings, source fidelity where
   applicable, `git diff --check`, and `git status` have been reviewed.
-- The Exa onboarding app (`apps/onboarding-exa`) is executable. Run the workspace checks documented
+- The Exa onboarding app (`corgi_cafe_app`) is executable. Run the workspace checks documented
   in the root `README.md` before claiming runtime verification.
 - Preserve intentional Markdown hard line breaks and source-reference formatting when a whitespace
   check flags them.

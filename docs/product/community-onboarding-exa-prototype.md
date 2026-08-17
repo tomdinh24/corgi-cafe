@@ -39,7 +39,7 @@ intentional because these prototypes have no database or private-community hando
 ## Run the prototype
 
 The npm workspace lives at the repo root; the app is
-[`apps/onboarding-exa/`](../../README.md).
+[`corgi_cafe_app/`](../../README.md).
 
 | Command | Local URL | Live keys |
 |---|---|---|

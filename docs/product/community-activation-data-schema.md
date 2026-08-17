@@ -29,7 +29,7 @@ The core dictionary below reflects `0001`–`0002`; the later migrations extend 
 
 ## Input field → where it's stored → why
 
-| UI input (onboarding-exa) | Table.column | Type | Why we store it |
+| UI input (corgi_cafe_app) | Table.column | Type | Why we store it |
 |---|---|---|---|
 | Email / Google sign-in | `members.email`, `members.display_name` | text | Identity + contact for the account (auth-bound). |
 | First / last name | `profiles.first_name`, `last_name` | text | How a member is shown to a confirmed introduction. |

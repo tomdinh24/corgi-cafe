@@ -6,7 +6,7 @@ to a real counterpart, confirms the meeting, and leaves private feedback — per
 
 ## Layout
 
-- `apps/onboarding-exa/` — the Next.js app (App Router). **This is the product.**
+- `corgi_cafe_app/` — the Next.js app (App Router). **This is the product.**
 - `packages/corgi-onboarding-shared/` — shared Zod schemas, security, events, and UI/styles.
 - `supabase/` — Postgres schema (migrations), config, seed, tests.
 - `docs/` — product spec, brand + design standards, reference. `docs/archive/` holds superseded material.

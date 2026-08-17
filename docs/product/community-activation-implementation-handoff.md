@@ -2,7 +2,7 @@
 
 ## Implemented experience
 
-The active Exa app (`apps/onboarding-exa`) implements the approved onboarding and matching journeys.
+The active Exa app (`corgi_cafe_app`) implements the approved onboarding and matching journeys.
 Onboarding covers email or Google authentication, profile search
 disclosure, a user-confirmed Exa identity candidate, optional public links, profile preview, and
 profile confirmation. The post-onboarding flow covers the Cafe/community/later choice, Cafe gates,

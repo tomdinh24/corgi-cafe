@@ -1,15 +1,15 @@
 {
   "name": "corgi-cafe",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["corgi_cafe_app", "packages/*"],
   "scripts": {
-    "dev": "npm run dev --workspace=@corgi/onboarding-exa",
-    "dev:exa": "npm run dev --workspace=@corgi/onboarding-exa",
+    "dev": "npm run dev --workspace=@corgi/cafe-app",
+    "dev:exa": "npm run dev --workspace=@corgi/cafe-app",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:live": "dotenv -e apps/onboarding-exa/.env.local -- playwright test --grep @live"
+    "test:live": "dotenv -e corgi_cafe_app/.env.local -- playwright test --grep @live"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
