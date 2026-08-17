@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ExaOnboarding } from "@/components/ExaOnboarding";
 
 export const metadata: Metadata = {
-  title: "Account settings | Corgi",
+  title: "Settings | Corgi",
   description: "View and edit your Corgi profile, links, and account.",
 };
 
