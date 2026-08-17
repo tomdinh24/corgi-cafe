@@ -211,33 +211,48 @@ textarea {
   margin-top: 28px;
 }
 
+/* Keycap buttons: a raised key with a solid darker "lip" underneath that the button presses
+   down into on click, for a tactile 3D feel across the whole app. */
 .button {
   min-height: 44px;
-  padding: 9px 16px;
-  border: 1px solid var(--interactive);
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 12px;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 24px;
   cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
 }
 
 .button.primary {
   background: var(--orange);
   color: var(--ink);
+  box-shadow: 0 4px 0 var(--orange-dark), 0 6px 12px rgba(0, 0, 0, 0.16);
 }
 
 .button.primary:hover {
-  background: var(--orange-hover);
+  filter: brightness(1.04);
 }
 
 .button.primary:active {
-  background: var(--orange-pressed);
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--orange-dark), 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .button.secondary {
   background: var(--white);
   color: var(--ink);
+  box-shadow: 0 4px 0 #c9c7c0, 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.button.secondary:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #c9c7c0, 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .button.quiet {
@@ -245,11 +260,17 @@ textarea {
   color: var(--muted);
   text-decoration: underline;
   text-underline-offset: 3px;
+  box-shadow: none;
+}
+
+.button.quiet:active {
+  transform: none;
 }
 
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+  transform: none;
 }
 
 .choice {
