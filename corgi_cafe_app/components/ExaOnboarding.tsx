@@ -9,6 +9,9 @@ import { bootCache, computeResume, invalidateBoot, loadBoot, MATCH_WINDOW_MS, ty
 
 const LOCATION_CHECK_KEY = "corgi.locationCheck";
 const MODE_KEY = "corgi.mode";
+// Set once the "How do you want to start?" prompt has been shown, so a new user is asked exactly once
+// (they can still switch Live/Demo anytime from the top bar).
+const MODE_PROMPTED_KEY = "corgi.modePrompted";
 
 type Terminal = "" | "community" | "later" | "pass" | "not_met" | "finished";
 
@@ -168,6 +171,10 @@ export function ExaOnboarding() {
   // switchable from the top bar; persisted in localStorage.
   const [mode, setMode] = useState<"live" | "demo">("live");
   const [modeChosen, setModeChosen] = useState(false);
+  // Guards the mode prompt: prefsLoaded avoids racing localStorage restore (which would re-open the
+  // modal on every load for users who already chose), and modePrompted keeps it to once per browser.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [modePrompted, setModePrompted] = useState(false);
   const [showModeModal, setShowModeModal] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
@@ -280,17 +287,25 @@ export function ExaOnboarding() {
   useEffect(() => {
     try { setLocationCheck(window.localStorage.getItem(LOCATION_CHECK_KEY) === "1"); } catch { /* ignore */ }
   }, []);
-  // Restore the saved Live/Demo choice. If none is stored, the post-sign-in modal will ask.
+  // Restore the saved Live/Demo choice and the "already prompted" flag. If none is stored, the
+  // post-sign-in modal will ask once. prefsLoaded gates the ask so it never fires before this runs.
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(MODE_KEY);
       if (stored === "live" || stored === "demo") { setMode(stored); setModeChosen(true); }
+      if (window.localStorage.getItem(MODE_PROMPTED_KEY) === "1") setModePrompted(true);
     } catch { /* ignore */ }
+    setPrefsLoaded(true);
   }, []);
-  // Ask for a mode the first time a signed-in visitor lands on home without a saved choice.
+  // Ask a NEW user for a mode exactly once, the first time they land on home. Gated on prefsLoaded
+  // (so a returning user's stored choice is known first) and persisted so it never re-asks.
   useEffect(() => {
-    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev" || authMode === "password")) setShowModeModal(true);
-  }, [resuming, modeChosen, step, authMode]);
+    if (prefsLoaded && !resuming && !modeChosen && !modePrompted && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev" || authMode === "password")) {
+      setShowModeModal(true);
+      setModePrompted(true);
+      try { window.localStorage.setItem(MODE_PROMPTED_KEY, "1"); } catch { /* ignore */ }
+    }
+  }, [prefsLoaded, resuming, modeChosen, modePrompted, step, authMode]);
   // Close the avatar photo-source menu when clicking anywhere outside it.
   useEffect(() => {
     if (!photoMenuOpen) return;
@@ -388,7 +403,7 @@ export function ExaOnboarding() {
           // The other person declined; we were re-pooled. Keep the session id — it's the one that's
           // now searching, so the pool poll on step 18 can carry us into a fresh match.
           clearMatchState();
-          setNotice("That introduction didn’t work out — we’re looking for someone else worth meeting.");
+          setNotice("Oops — something went wrong. Let us find you another person.");
           go(18);
         } else if (result.status !== "introduced") {
           // expired / cancelled / completed — the introduction is over; return home.
@@ -481,9 +496,9 @@ export function ExaOnboarding() {
     const { accountMenuOpen, accountInitials, avatarUrl, email, authMode, logout, openAccount, mode, setModeFlag, showModeModal } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
-    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="mode-switch" role="group" aria-label="Live or Demo mode"><button type="button" className={mode === "live" ? "selected" : ""} aria-pressed={mode === "live"} onClick={() => setModeFlag("live")}>Live</button><button type="button" className={mode === "demo" ? "selected" : ""} aria-pressed={mode === "demo"} onClick={() => setModeFlag("demo")}>Demo</button></div>}{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onMouseEnter={() => setAccountMenuOpen(true)} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}{locationVerified
+    return <main className="journey-shell"><SiteHeader brandHref={shellStep >= 2 && authMode !== "preview" && authMode !== "checking" ? "/home" : "/"} right={<>{showAccount && <div className="mode-switch" role="group" aria-label="Live or Demo mode"><button type="button" className={mode === "live" ? "selected" : ""} aria-pressed={mode === "live"} onClick={() => setModeFlag("live")}>Live</button><button type="button" className={mode === "demo" ? "selected" : ""} aria-pressed={mode === "demo"} onClick={() => setModeFlag("demo")}>Demo</button></div>}{locationVerified
       ? <span className="cafe-pill verified" title={`Verified: you’re at ${cafeLabel || "a Corgi Cafe"}`}><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</span>
-      : <a className="cafe-pill" href="https://www.corgicafe.com/locations" target="_blank" rel="noopener noreferrer" title="Find a Corgi Cafe near you"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</a>}</>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section>{showModeModal && <div className="mode-modal" role="dialog" aria-modal="true" aria-labelledby="mode-modal-title"><div className="mode-modal-card"><h2 id="mode-modal-title">How do you want to start?</h2><p>You can switch anytime from the top bar.</p><div className="mode-modal-choices"><button type="button" className="mode-choice" onClick={() => setModeFlag("live")}><strong>Live</strong><span>Meet someone who’s at your café right now — a real introduction.</span></button><button type="button" className="mode-choice" onClick={() => setModeFlag("demo")}><strong>Demo</strong><span>Just exploring? Walk through the whole experience with a sample match — no one else needed.</span></button></div></div></div>}</main>;
+      : <a className="cafe-pill" href="https://www.corgicafe.com/locations" target="_blank" rel="noopener noreferrer" title="Find a Corgi Cafe near you"><span className="cafe-pill-dot" aria-hidden="true" />{cafeLabel ? <><b>{cafeLabel}</b> · Corgi Cafe</> : "Corgi Cafe"}</a>}{showAccount && <div className="account-menu" ref={accountMenuRef} onMouseLeave={() => setAccountMenuOpen(false)}><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onMouseEnter={() => setAccountMenuOpen(true)} onClick={() => setAccountMenuOpen((open) => !open)}>{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}</>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section>{showModeModal && <div className="mode-modal" role="dialog" aria-modal="true" aria-labelledby="mode-modal-title"><div className="mode-modal-card"><h2 id="mode-modal-title">How do you want to start?</h2><p>You can switch anytime from the top bar.</p><div className="mode-modal-choices"><button type="button" className="mode-choice" onClick={() => setModeFlag("live")}><strong>Live</strong><span>Meet someone who’s at your café right now — a real introduction.</span></button><button type="button" className="mode-choice" onClick={() => setModeFlag("demo")}><strong>Demo</strong><span>Just exploring? Walk through the whole experience with a sample match — no one else needed.</span></button></div></div></div>}</main>;
   }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
   // Awaitable: the recognition-media upload (next step) is gated by RLS on this decision being
