@@ -1931,23 +1931,31 @@
 }
 
 /* Match the onboarding journey button (.journey-button) so the landing CTAs are
-   visually identical to the buttons in the /start flow. Placed last to win over
-   the per-section landing button rules (header / hero / final). */
+   visually identical to the buttons in the /start flow — the refined 3D "keycap"
+   (raised key on a thin soft lip). Placed last to win over the per-section landing
+   button rules (header / hero / final). */
 .landing-page .button {
   min-height: 46px;
-  padding: 10px 17px;
-  border-radius: 9px;
+  padding: 11px 20px;
+  border-radius: 14px;
   font-size: 15px;
-  font-weight: 780;
+  font-weight: 800;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.1s ease;
 }
 
 .landing-page .button.primary {
-  border: 1px solid #282825;
+  border: 0;
   background: var(--orange);
   color: #1c1c1a;
-  box-shadow: none;
+  box-shadow: 0 2px 0 #d24e05, 0 5px 11px rgba(0, 0, 0, 0.2);
 }
 
 .landing-page .button.primary:hover {
-  background: var(--orange-hover);
+  background: var(--orange);
+  filter: brightness(1.04);
+}
+
+.landing-page .button.primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #d24e05, 0 2px 5px rgba(0, 0, 0, 0.22);
 }

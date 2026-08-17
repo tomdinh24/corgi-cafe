@@ -221,18 +221,18 @@ textarea {
   gap: 8px;
   padding: 10px 18px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 16px;
   font-weight: 800;
   line-height: 24px;
   cursor: pointer;
-  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.1s ease;
 }
 
 .button.primary {
   background: var(--orange);
   color: var(--ink);
-  box-shadow: 0 4px 0 var(--orange-dark), 0 6px 12px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 2px 0 #d24e05, 0 5px 11px rgba(0, 0, 0, 0.2);
 }
 
 .button.primary:hover {
@@ -240,19 +240,19 @@ textarea {
 }
 
 .button.primary:active {
-  transform: translateY(4px);
-  box-shadow: 0 1px 0 var(--orange-dark), 0 2px 6px rgba(0, 0, 0, 0.2);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #d24e05, 0 2px 5px rgba(0, 0, 0, 0.22);
 }
 
 .button.secondary {
   background: var(--white);
   color: var(--ink);
-  box-shadow: 0 4px 0 #c9c7c0, 0 6px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 0 #d9d7d1, 0 5px 11px rgba(0, 0, 0, 0.12);
 }
 
 .button.secondary:active {
-  transform: translateY(4px);
-  box-shadow: 0 1px 0 #c9c7c0, 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #d9d7d1, 0 2px 5px rgba(0, 0, 0, 0.14);
 }
 
 .button.quiet {
