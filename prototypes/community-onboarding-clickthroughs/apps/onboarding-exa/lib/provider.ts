@@ -68,6 +68,58 @@ async function exaPost(path: string, body: unknown, signal?: AbortSignal) {
   return response.json();
 }
 
+const UrlContentsSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        url: z.string(),
+        title: z.string().nullish(),
+        text: z.string().nullish(),
+      }),
+    )
+    .default([]),
+});
+export type UrlContent = { url: string; title?: string; text: string };
+
+// Fetches readable page text for the URLs a member confirmed as their own (company site, LinkedIn,
+// GitHub, personal site) via Exa's /contents — going through Exa rather than fetching server-side
+// keeps us off internal-network SSRF surface and handles JS/anti-bot pages. Best-effort: URLs that
+// error or return nothing are simply dropped.
+export async function fetchUrlContents(
+  urls: string[],
+  signal?: AbortSignal,
+): Promise<UrlContent[]> {
+  if (!urls.length) return [];
+  const body = await exaPost(
+    "/contents",
+    { urls, text: { maxCharacters: 2000 }, livecrawl: "fallback" },
+    signal,
+  );
+  const parsed = UrlContentsSchema.parse(body);
+  return parsed.results.flatMap((result) => {
+    const text = result.text?.trim();
+    if (!text) return [];
+    return [{ url: result.url, title: result.title?.trim() || undefined, text: text.slice(0, 2000) }];
+  });
+}
+
+// Public web results about a person (news, talks, funding, writing) — the layer beyond their own
+// URLs. One call: Exa /search with inline contents so each result already carries readable text.
+export async function searchPersonWeb(query: string, signal?: AbortSignal): Promise<UrlContent[]> {
+  if (!query.trim()) return [];
+  const body = await exaPost(
+    "/search",
+    { query, type: "auto", numResults: 5, contents: { text: { maxCharacters: 1200 } } },
+    signal,
+  );
+  const parsed = UrlContentsSchema.parse(body);
+  return parsed.results.flatMap((result) => {
+    const text = result.text?.trim();
+    if (!text) return [];
+    return [{ url: result.url, title: result.title?.trim() || undefined, text: text.slice(0, 1200) }];
+  });
+}
+
 function safeImageUrl(value: string | null | undefined) {
   if (!value) return undefined;
   try {
@@ -123,6 +175,17 @@ export async function searchExa(
           sourceHost,
           identifierOnly,
           mayExtractFacts: !identifierOnly,
+          // Keep the full trajectory (not just the current role) so the confirmed profile can be
+          // enriched with is-founder / tenure / past-companies signal for the matcher.
+          workHistory: entity.properties.workHistory
+            .map((item) => ({
+              title: item.title?.trim() || undefined,
+              company: item.company?.name?.trim() || undefined,
+              from: item.dates?.from?.trim() || undefined,
+              to: item.dates?.to?.trim() || undefined,
+            }))
+            .filter((item) => item.title || item.company)
+            .slice(0, 25),
         } satisfies PersonCandidate,
       ];
     })

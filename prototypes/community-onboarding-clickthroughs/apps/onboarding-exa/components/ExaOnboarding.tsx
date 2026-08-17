@@ -60,6 +60,36 @@ function isRealPhoto(url: string | undefined | null): url is string {
   try { return new URL(url).host !== "static.licdn.com"; } catch { return false; }
 }
 
+type ProfileEnrichment = {
+  headline?: string;
+  isFounder?: boolean;
+  currentCompany?: string;
+  pastCompanies?: string[];
+  roles?: { title?: string; company?: string; from?: string; to?: string }[];
+};
+// Turns the confirmed people-search candidate's work history into compact career context for the
+// matcher: a headline, whether they currently hold a founder/CEO-type role, and their past
+// companies. Returns undefined when there's nothing worth storing (e.g. a manual, no-candidate flow).
+function deriveEnrichment(candidate: PersonCandidate): ProfileEnrichment | undefined {
+  const roles = (candidate.workHistory ?? []).filter((role) => role.title || role.company);
+  const current = roles.find((role) => !role.to) ?? roles[0];
+  const currentTitle = candidate.title || current?.title;
+  const currentCompany = candidate.company || current?.company;
+  const headline = [currentTitle, currentCompany].filter(Boolean).join(" at ") || undefined;
+  const isFounder = /\b(founder|co-?founder|ceo|owner|managing partner|general partner)\b/i.test(currentTitle ?? "");
+  const pastCompanies = Array.from(
+    new Set(roles.map((role) => role.company).filter((company): company is string => Boolean(company) && company !== currentCompany)),
+  ).slice(0, 8);
+  const out: ProfileEnrichment = {
+    ...(headline ? { headline } : {}),
+    ...(isFounder ? { isFounder: true } : {}),
+    ...(currentCompany ? { currentCompany } : {}),
+    ...(pastCompanies.length ? { pastCompanies } : {}),
+    ...(roles.length ? { roles: roles.slice(0, 25) } : {}),
+  };
+  return out.headline || out.roles || out.pastCompanies ? out : undefined;
+}
+
 async function jsonPost(path: string, body: unknown) {
   const response = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const data = await response.json().catch(() => ({}));
@@ -101,6 +131,9 @@ export function ExaOnboarding() {
   const [candidates, setCandidates] = useState<PersonCandidate[]>([]);
   const [candidateId, setCandidateId] = useState("");
   const [candidateSource, setCandidateSource] = useState<{ kind: LinkKind; url: string } | null>(null);
+  // Career context derived from the confirmed people-search candidate; persisted with the profile
+  // and later fed to the matcher. Set at candidate selection, empty on the manual (no-candidate) path.
+  const [enrichment, setEnrichment] = useState<ProfileEnrichment | undefined>(undefined);
   const [branch, setBranch] = useState<"cafe" | "community" | "later">("cafe");
   const [terminal, setTerminal] = useState<Terminal>("");
   const [conversationMode, setConversationMode] = useState<"specific" | "open">("specific");
@@ -389,6 +422,8 @@ export function ExaOnboarding() {
     if (!candidate) return;
     // Adopt the candidate's public photo (e.g. their LinkedIn headshot) as this member's avatar.
     if (isRealPhoto(candidate.imageUrl)) setAvatarUrl(candidate.imageUrl);
+    // Capture the confirmed candidate's trajectory as enrichment (is-founder, past companies).
+    setEnrichment(deriveEnrichment(candidate));
     if (!candidate.identifierOnly && candidate.mayExtractFacts) {
       setRole(candidate.title || role); setCompany(candidate.company || company); setLocation(candidate.location || location);
       setCandidateSource({ kind: "website", url: candidate.profileUrl });
@@ -401,7 +436,10 @@ export function ExaOnboarding() {
   const persistProfile = async () => {
     setLoading(true); setError("");
     try {
-      await save({ kind: "profile", profile: { firstName, lastName, broadLocation: location, roleTitle: role, companyOrProject: company, aboutMe: about, currentWork, favoriteDrink, avatarUrl: isRealPhoto(avatarUrl) ? avatarUrl : undefined, sources: [...cleanLinks, ...(candidateSource && !cleanLinks.some((item) => item.url === candidateSource.url) ? [candidateSource] : [])] } });
+      await save({ kind: "profile", profile: { firstName, lastName, broadLocation: location, roleTitle: role, companyOrProject: company, aboutMe: about, currentWork, favoriteDrink, avatarUrl: isRealPhoto(avatarUrl) ? avatarUrl : undefined, sources: [...cleanLinks, ...(candidateSource && !cleanLinks.some((item) => item.url === candidateSource.url) ? [candidateSource] : [])], ...(enrichment ? { enrichment } : {}) } });
+      // Fire-and-forget: enrich the profile from the URLs just saved (company stage, hiring, thesis).
+      // Deliberately not awaited — it must never delay landing on home or the first match.
+      if (cleanLinks.length || candidateSource) void fetch("/api/enrich", { method: "POST" }).catch(() => {});
       go(7);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Your profile could not be saved."); }
     finally { setLoading(false); }

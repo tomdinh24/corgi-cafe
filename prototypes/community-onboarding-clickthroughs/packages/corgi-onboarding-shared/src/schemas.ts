@@ -76,6 +76,17 @@ const HttpsUrlSchema = z
     message: "Profile images must use HTTPS",
   });
 
+// One prior/current role from the people-search work history. Carried on the candidate so that,
+// once the member confirms "this is me", we can persist their trajectory as profile enrichment
+// (is-founder, tenure, past companies) instead of discarding everything but the current title.
+export const WorkHistoryEntrySchema = z.object({
+  title: z.string().trim().max(160).optional(),
+  company: z.string().trim().max(180).optional(),
+  from: z.string().trim().max(40).optional(),
+  to: z.string().trim().max(40).optional(),
+});
+export type WorkHistoryEntry = z.infer<typeof WorkHistoryEntrySchema>;
+
 export const PersonCandidateSchema = z.object({
   id: z.string().min(1).max(240),
   firstName: z.string().trim().min(1).max(80),
@@ -88,6 +99,7 @@ export const PersonCandidateSchema = z.object({
   sourceHost: z.string().min(1).max(255),
   identifierOnly: z.boolean(),
   mayExtractFacts: z.boolean(),
+  workHistory: z.array(WorkHistoryEntrySchema).max(25).default([]),
 });
 
 export const ProfileDraftSchema = z.object({

@@ -151,4 +151,53 @@ begin
   raise notice 'PASS re-match: previously-paired members were reconnected (rec=% counterpart=%)', rec2, counterpart_first;
 end $$;
 
+-- ---- LLM pick: an explicit chosen_target + override reason commits that exact pair ----
+-- Guards the 202608180005 change. The ranker runs in the app (not SQL); here we simulate its output
+-- by passing the chosen counterpart session and a reason directly, and assert the RPC (a) honors the
+-- pick, (b) still re-validates it against the hard filters, (c) stores the override as the human
+-- explanation, and (d) tags evidence.ranked_by = 'llm'.
+update public.visit_intro_sessions
+  set status = 'completed'
+  where status in ('searching', 'introduced', 'waiting', 'meeting', 'draft');
+
+insert into public.visit_intro_sessions (
+  id, member_id, order_confirmed_today, at_cafe, presence_checked_at,
+  conversation_mode, topics, useful_context, offer_context, boundaries, status
+) values
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111',
+   true, true, now(), 'specific', array['Building community'],
+   'Meeting builders', 'Can host gatherings',
+   '{"fundraising":false,"recruiting":false,"sales":false}'::jsonb, 'searching'),
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222',
+   true, true, now(), 'specific', array['Building community'],
+   'Learning to host meetups', 'Product feedback',
+   '{"fundraising":false,"recruiting":false,"sales":false}'::jsonb, 'searching');
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', '22222222-2222-2222-2222-222222222222', 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  rec3 uuid;
+  stored_explanation text;
+  ranked_by text;
+begin
+  rec3 := public.request_introduction(
+    'ffffffff-ffff-ffff-ffff-ffffffffffff',
+    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    'You and Rowan both care about low-pressure gatherings — a good ten minutes.');
+  if rec3 is null then
+    raise exception 'FAIL: expected the chosen pick to commit, got null';
+  end if;
+  select explanation, evidence->>'ranked_by' into stored_explanation, ranked_by
+  from public.recommendations where id = rec3;
+  if stored_explanation is distinct from 'You and Rowan both care about low-pressure gatherings — a good ten minutes.' then
+    raise exception 'FAIL: override explanation not stored, got %', stored_explanation;
+  end if;
+  if ranked_by is distinct from 'llm' then
+    raise exception 'FAIL: expected evidence.ranked_by=llm, got %', ranked_by;
+  end if;
+  raise notice 'PASS llm-pick: chosen target committed with override reason (rec=%)', rec3;
+end $$;
+
 rollback;

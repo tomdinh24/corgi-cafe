@@ -51,7 +51,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (error) return NextResponse.json({ message: "Introduction is unavailable." }, { status: 502 });
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return NextResponse.json({ message: "Introduction not available." }, { status: 404 });
-  const reason = await phraseReason(row.introduction_reason, row.first_name, row.evidence);
+  // When the LLM ranker chose this match it already wrote a grounded, context-aware reason — use it
+  // verbatim rather than paying for a second rewrite that could only dilute it. The deterministic
+  // fallback path (no ranker) still gets warmed up by phraseReason.
+  const rankedByLlm = row.evidence && typeof row.evidence === "object" && (row.evidence as { ranked_by?: string }).ranked_by === "llm";
+  const reason = rankedByLlm ? row.introduction_reason : await phraseReason(row.introduction_reason, row.first_name, row.evidence);
   return NextResponse.json({
     firstName: row.first_name,
     roleTitle: row.role_title,

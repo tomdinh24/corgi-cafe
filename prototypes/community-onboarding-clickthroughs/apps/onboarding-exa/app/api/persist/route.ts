@@ -29,6 +29,9 @@ export async function POST(request: Request) {
       // Only overwrite the avatar when the client sends one, so saving profile edits from account
       // settings never wipes a photo the member uploaded separately.
       ...(profile.avatarUrl ? { avatar_url: profile.avatarUrl } : {}),
+      // Same guard for enrichment: only written when the client derived it (from a confirmed
+      // people-search candidate), so a later manual profile edit doesn't blank the career context.
+      ...(profile.enrichment ? { enrichment: profile.enrichment } : {}),
       confirmed_at: new Date().toISOString(),
     });
     if (error) return NextResponse.json({ message: "Your profile could not be saved." }, { status: 502 });

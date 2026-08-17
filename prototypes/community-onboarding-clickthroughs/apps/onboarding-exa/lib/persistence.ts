@@ -5,6 +5,26 @@ export const PublicLinkSchema = z.object({
   url: z.string().url().max(2048),
 });
 
+// Derived career context, computed client-side from the confirmed people-search candidate. Bounded
+// and structured so it can be fed straight into the matcher without another lookup.
+export const EnrichmentPayloadSchema = z.object({
+  headline: z.string().trim().max(240).optional(),
+  isFounder: z.boolean().optional(),
+  currentCompany: z.string().trim().max(180).optional(),
+  pastCompanies: z.array(z.string().trim().max(180)).max(8).optional(),
+  roles: z
+    .array(
+      z.object({
+        title: z.string().trim().max(160).optional(),
+        company: z.string().trim().max(180).optional(),
+        from: z.string().trim().max(40).optional(),
+        to: z.string().trim().max(40).optional(),
+      }),
+    )
+    .max(25)
+    .optional(),
+});
+
 export const ProfilePayloadSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
@@ -16,6 +36,7 @@ export const ProfilePayloadSchema = z.object({
   favoriteDrink: z.string().trim().max(160),
   avatarUrl: z.string().url().max(2048).optional(),
   sources: z.array(PublicLinkSchema).max(4),
+  enrichment: EnrichmentPayloadSchema.optional(),
 });
 
 export const SessionPayloadSchema = z.object({
