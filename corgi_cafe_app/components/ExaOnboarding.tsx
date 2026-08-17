@@ -125,7 +125,7 @@ export function ExaOnboarding() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [setup, setSetup] = useState<SetupMode>("checking");
-  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink">("checking");
+  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink" | "otp">("checking");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [authIntent, setAuthIntent] = useState<"signup" | "signin">(() => (pathname === "/sign-in" ? "signin" : "signup"));
@@ -230,8 +230,9 @@ export function ExaOnboarding() {
     configPromise.then(async (data) => {
       setSetup(data.supabase);
       setAuthMode(data.authMode ?? "preview");
-      if (data.authMode === "magiclink" || data.authMode === "dev") {
-        // Already signed in (magic-link return, or a live session from earlier tonight)? Resume
+      if (data.authMode === "otp" || data.authMode === "magiclink" || data.authMode === "dev") {
+        // Already signed in (OTP-verified this tab, magic-link return, or a live session from
+        // earlier tonight)? Resume
         // where they left off instead of re-running onboarding from scratch.
         try {
           const status = await statusPromise;
@@ -306,7 +307,7 @@ export function ExaOnboarding() {
   }, []);
   // Ask for a mode the first time a signed-in visitor lands on home without a saved choice.
   useEffect(() => {
-    if (!resuming && !modeChosen && step === 7 && (authMode === "magiclink" || authMode === "dev")) setShowModeModal(true);
+    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev")) setShowModeModal(true);
   }, [resuming, modeChosen, step, authMode]);
   // Close the avatar photo-source menu when clicking anywhere outside it.
   useEffect(() => {

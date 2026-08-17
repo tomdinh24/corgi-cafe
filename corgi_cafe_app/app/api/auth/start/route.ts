@@ -14,15 +14,18 @@ export async function POST(request: Request) {
     // Dev login: no email is sent. Enter any 6-digit code on the next screen to sign in.
     return NextResponse.json({ mode: "preview", message: "Dev login is on. Enter any six-digit code to continue." });
   }
-  // Magic-link sign-in: Supabase emails a link that returns to /auth/callback and establishes the
-  // session there. The redirect origin is derived from the request so it works across environments.
+  // Email OTP sign-in: signInWithOtp emails a 6-digit code (and, because emailRedirectTo is set, a
+  // magic link too). The client enters the code in the same tab — immune to the private/incognito
+  // mobile failure where the emailed link opens a separate cookie jar with no PKCE verifier. The
+  // link is kept only as a same-context bonus; the code is the primary path. Requires the Supabase
+  // "Magic Link" email template to include {{ .Token }} so the code is actually delivered.
   const origin = new URL(request.url).origin;
   const supabase = await createCorgiServerClient();
   const { error } = await supabase!.auth.signInWithOtp({
     email: body.data.email,
     options: { shouldCreateUser: true, emailRedirectTo: `${origin}/auth/callback` },
   });
-  if (error) return NextResponse.json({ message: "We could not send your sign-in link. Try again." }, { status: 502 });
-  return NextResponse.json({ mode: "magiclink" });
+  if (error) return NextResponse.json({ message: "We could not send your sign-in code. Try again." }, { status: 502 });
+  return NextResponse.json({ mode: "otp" });
 }
 
