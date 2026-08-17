@@ -86,7 +86,16 @@ export async function POST(request: Request) {
       .update({ private_decision: data.decision.choice, decided_at: new Date().toISOString() })
       .eq("recommendation_id", data.decision.recommendationId)
       .eq("member_id", memberId);
-    return error ? NextResponse.json({ message: "Your choice could not be recorded." }, { status: 502 }) : NextResponse.json({ status: "saved" });
+    if (error) return NextResponse.json({ message: "Your choice could not be recorded." }, { status: 502 });
+    // A pass ends the introduction for both: the security-definer RPC closes the recommendation,
+    // retires the decliner's session, and returns the counterpart's session to the searching pool so
+    // they aren't stranded on a match the decliner already killed. Best-effort — the private decision
+    // is already recorded, and the counterpart's client also polls, so a transient RPC failure still
+    // resolves when the intro window lapses.
+    if (data.decision.choice === "pass") {
+      await supabase!.rpc("decline_introduction", { target_recommendation_id: data.decision.recommendationId });
+    }
+    return NextResponse.json({ status: "saved" });
   }
 
   if (data.kind === "meeting") {
