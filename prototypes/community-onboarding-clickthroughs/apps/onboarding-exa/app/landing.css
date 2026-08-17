@@ -60,8 +60,13 @@
 .landing-header-inner {
   width: min(100% - 40px, 1200px);
   min-height: 64px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* Flex, not grid: the header renders a variable number of items — brand + (optional nav or an
+     empty center slot) + actions. A fixed grid column count wrapped the actions onto a second row
+     whenever the item count didn't match the track count (e.g. the onboarding header's empty
+     center span in a 2-column mobile grid). Flex space-between keeps every item on one
+     vertically-centered row regardless of how many there are. */
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 24px;
   margin-inline: auto;
@@ -83,6 +88,7 @@
 }
 
 .landing-nav-links {
+  flex: 1;
   display: flex;
   justify-content: center;
   gap: 22px;
