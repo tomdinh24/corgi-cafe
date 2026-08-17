@@ -5,20 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { normalizePublicUrl, namedPlatformForUrl, namedPlatformLabel, type PersonCandidate } from "@corgi/onboarding-shared";
 import { SiteHeader } from "./SiteHeader";
 import { CORGI_CAFES, DEFAULT_CAFE_CODE, nearestCafe } from "@/lib/cafes";
+import { bootCache, computeResume, loadBoot, MATCH_WINDOW_MS, type AuthMode, type LinkKind, type Resume, type SetupMode } from "@/lib/resume";
 
 const LOCATION_CHECK_KEY = "corgi.locationCheck";
 const MODE_KEY = "corgi.mode";
 
-type SetupMode = "checking" | "configured" | "setup_required";
 type Terminal = "" | "community" | "later" | "pass" | "not_met" | "notify" | "finished";
-type LinkKind = "linkedin_identifier" | "website" | "github" | "social";
 
 const topicOptions = ["Building community", "Creative projects", "Product & technology", "Career stories", "AI & products", "First customers", "Fundraising", "SF life"];
-
-// A match is only live for a short window: if neither person acts within this window it expires so
-// both are freed to meet someone else. The introduction screen counts down from here; on refresh the
-// countdown resumes from the server's introduced_at rather than restarting.
-const MATCH_WINDOW_MS = 5 * 60 * 1000;
 
 // The hold still counts down in the background, but we surface only a soft, rounded sense of how much
 // time is left ("~10 min", then 5 / 2 / 1) instead of a ticking clock — a gentle heads-up, not a
@@ -123,10 +117,14 @@ async function jsonGet(path: string) {
 export function ExaOnboarding() {
   const pathname = usePathname();
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [setup, setSetup] = useState<SetupMode>("checking");
-  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink" | "otp" | "password">("checking");
-  const [email, setEmail] = useState("");
+  // On a remount within the same page-load (e.g. the resume redirect /sign-in -> /home), bootCache is
+  // already populated, so we derive the resumed state synchronously and seed it into the initial
+  // state below — the correct screen paints on the first frame with no loader and no re-fetch.
+  const [cached] = useState<Resume | null>(() => (bootCache ? computeResume(bootCache) : null));
+  const [step, setStep] = useState(() => cached?.step ?? 0);
+  const [setup, setSetup] = useState<SetupMode>(() => cached?.setup ?? "checking");
+  const [authMode, setAuthMode] = useState<AuthMode>(() => cached?.authMode ?? "checking");
+  const [email, setEmail] = useState(() => cached?.email ?? "");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -134,18 +132,18 @@ export function ExaOnboarding() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [location, setLocation] = useState("");
-  const [role, setRole] = useState("");
-  const [company, setCompany] = useState("");
-  const [about, setAbout] = useState("");
-  const [currentWork, setCurrentWork] = useState("");
-  const [favoriteDrink, setFavoriteDrink] = useState("");
+  const [firstName, setFirstName] = useState(() => cached?.profile?.firstName ?? "");
+  const [lastName, setLastName] = useState(() => cached?.profile?.lastName ?? "");
+  const [location, setLocation] = useState(() => cached?.profile?.broadLocation ?? "");
+  const [role, setRole] = useState(() => cached?.profile?.roleTitle ?? "");
+  const [company, setCompany] = useState(() => cached?.profile?.companyOrProject ?? "");
+  const [about, setAbout] = useState(() => cached?.profile?.aboutMe ?? "");
+  const [currentWork, setCurrentWork] = useState(() => cached?.profile?.currentWork ?? "");
+  const [favoriteDrink, setFavoriteDrink] = useState(() => cached?.profile?.favoriteDrink ?? "");
   // Profile photo. Set from the chosen search candidate's public photo during onboarding, or from a
   // file uploaded in account settings; shown wherever this member's avatar appears post-onboarding.
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [links, setLinks] = useState<Record<LinkKind, string>>({ linkedin_identifier: "", website: "", github: "", social: "" });
+  const [avatarUrl, setAvatarUrl] = useState(() => cached?.profile?.avatarUrl ?? "");
+  const [links, setLinks] = useState<Record<LinkKind, string>>(() => cached?.links ?? { linkedin_identifier: "", website: "", github: "", social: "" });
   const [candidates, setCandidates] = useState<PersonCandidate[]>([]);
   const [candidateId, setCandidateId] = useState("");
   const [candidateSource, setCandidateSource] = useState<{ kind: LinkKind; url: string } | null>(null);
@@ -192,12 +190,12 @@ export function ExaOnboarding() {
   const [meetingSecondsLeft, setMeetingSecondsLeft] = useState(600);
   // Epoch ms when the current match expires (0 = no live match). The introduction screen (step 11)
   // counts down to it; when it passes, the match is expired server-side and both people are reset.
-  const [matchExpiresAt, setMatchExpiresAt] = useState(0);
+  const [matchExpiresAt, setMatchExpiresAt] = useState(() => cached?.matchExpiresAt ?? 0);
   const [matchSecondsLeft, setMatchSecondsLeft] = useState(Math.round(MATCH_WINDOW_MS / 1000));
   const [feedback, setFeedback] = useState<"" | "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful">("");
   const [feedbackNote, setFeedbackNote] = useState("");
-  const [sessionId, setSessionId] = useState("");
-  const [recommendationId, setRecommendationId] = useState("");
+  const [sessionId, setSessionId] = useState(() => cached?.sessionId ?? "");
+  const [recommendationId, setRecommendationId] = useState(() => cached?.recommendationId ?? "");
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -221,78 +219,60 @@ export function ExaOnboarding() {
   // True until we know whether this visitor already has a live session (and a claimed profile) to
   // resume into — gates the very first paint so we never flash the sign-up screen before jumping
   // straight to a resumed session.
-  const [resuming, setResuming] = useState(true);
+  // If the boot data is already cached (a remount within this page-load), we hydrated synchronously
+  // above, so there is nothing to wait for — skip the loader entirely.
+  const [resuming, setResuming] = useState(() => bootCache === null);
 
   useEffect(() => {
-    // Fire both boot calls at once instead of chaining status behind config. They're independent
-    // (status returns {authenticated:false} when Supabase isn't configured), so running them in
-    // parallel halves the resume wait a signed-in visitor sees before landing on /home.
-    const configPromise = fetch("/api/config").then((r) => r.json());
-    const statusPromise = fetch("/api/auth/status").then((r) => r.json()).catch(() => ({ authenticated: false }));
-    configPromise.then(async (data) => {
-      setSetup(data.supabase);
-      setAuthMode(data.authMode ?? "preview");
-      if (data.authMode === "otp" || data.authMode === "magiclink" || data.authMode === "dev" || data.authMode === "password") {
-        // Already signed in (password sign-in this tab, OTP-verified this tab, magic-link return, or
-        // a live session from earlier tonight)? Resume
-        // where they left off instead of re-running onboarding from scratch.
-        try {
-          const status = await statusPromise;
-          if (!status.authenticated) return;
-          setEmail(status.email ?? "");
-          const profile = status.profile;
-          if (profile) {
-            setFirstName(profile.firstName ?? ""); setLastName(profile.lastName ?? "");
-            setLocation(profile.broadLocation ?? ""); setRole(profile.roleTitle ?? ""); setCompany(profile.companyOrProject ?? "");
-            setAbout(profile.aboutMe ?? ""); setCurrentWork(profile.currentWork ?? ""); setFavoriteDrink(profile.favoriteDrink ?? "");
-            setAvatarUrl(profile.avatarUrl ?? "");
-          }
-          if (Array.isArray(status.sources) && status.sources.length) {
-            setLinks((current) => {
-              const next = { ...current };
-              for (const source of status.sources) {
-                if (source && typeof source.kind === "string" && source.kind in next) next[source.kind as LinkKind] = source.url ?? "";
-              }
-              return next;
-            });
-          }
-          // Resume into a live match after a refresh/reconnect: a matched member returns to their
-          // introduction; a member still waiting in the pool returns to the "still looking" screen
-          // (which re-arms polling). Otherwise land on home / profile as before.
-          const active = status.activeSession;
-          if (profile?.confirmed && active?.id && active?.status) {
-            if ((active.status === "introduced" || active.status === "meeting") && status.activeRecommendationId) {
-              // A "meeting" session is already past the intro window (both confirmed continue), so it
-              // never expires; an "introduced" session still owes the 5-minute window, counted from
-              // when the match was made so a refresh resumes — not restarts — the countdown.
-              const startedAt = status.introducedAt ? new Date(status.introducedAt).getTime() : Date.now();
-              const expiresAt = startedAt + MATCH_WINDOW_MS;
-              if (active.status === "introduced" && expiresAt <= Date.now()) {
-                // The window lapsed while they were away: expire it server-side and land on home.
-                void fetch(`/api/introduction/${status.activeRecommendationId}/expire`, { method: "POST" }).catch(() => {});
-                setStep((current) => (current !== 0 ? current : 7));
-              } else {
-                setSessionId(active.id);
-                setRecommendationId(status.activeRecommendationId);
-                if (active.status === "introduced") setMatchExpiresAt(expiresAt);
-                try {
-                  const p = await jsonGet(`/api/introduction/${status.activeRecommendationId}`);
-                  setCounterpart({ firstName: p.firstName ?? "Someone", roleTitle: p.roleTitle ?? "", currentWork: p.currentWork ?? "", reason: p.reason ?? "" });
-                } catch { /* still land on the match; the screen re-fetches the counterpart */ }
-                setStep((current) => (current !== 0 ? current : 11));
-              }
-            } else if (active.status === "searching") {
-              setSessionId(active.id);
-              setStep((current) => (current !== 0 ? current : 18));
-            } else {
-              setStep((current) => (current !== 0 ? current : 7));
-            }
-          } else {
-            setStep((current) => (current !== 0 ? current : profile?.confirmed ? 7 : 2));
-          }
-        } catch { /* stay on the email step */ }
+    let cancelled = false;
+    // Fetches the counterpart for a resumed live match (step 11) without blocking the first paint —
+    // the intro screen tolerates a missing counterpart and re-fetches, so this stays fire-and-forget.
+    const hydrateMatch = (r: Resume) => {
+      if (r.pendingExpire) {
+        // The intro window lapsed while they were away: expire it server-side; they land on home.
+        void fetch(`/api/introduction/${r.pendingExpire}/expire`, { method: "POST" }).catch(() => {});
       }
-    }).catch(() => { setSetup("setup_required"); setAuthMode("preview"); }).finally(() => setResuming(false));
+      if (r.pendingCounterpart) {
+        void jsonGet(`/api/introduction/${r.pendingCounterpart}`)
+          .then((p) => { if (!cancelled) setCounterpart({ firstName: p.firstName ?? "Someone", roleTitle: p.roleTitle ?? "", currentWork: p.currentWork ?? "", reason: p.reason ?? "" }); })
+          .catch(() => { /* still land on the match; the screen re-fetches the counterpart */ });
+      }
+    };
+
+    if (bootCache && cached) {
+      // Cache hit: state was seeded synchronously from `cached`; only the async match lookup remains.
+      hydrateMatch(cached);
+      return () => { cancelled = true; };
+    }
+
+    // First load this page-load: fetch config + status once (cached for any later remount), then
+    // apply the resumed state. computeResume mirrors the synchronous seed path so both agree.
+    loadBoot().then((boot) => {
+      if (cancelled) return;
+      const r = computeResume(boot);
+      setSetup(r.setup);
+      setAuthMode(r.authMode);
+      if (!r.authenticated) return;
+      setEmail(r.email);
+      if (r.profile) {
+        setFirstName(r.profile.firstName); setLastName(r.profile.lastName);
+        setLocation(r.profile.broadLocation); setRole(r.profile.roleTitle); setCompany(r.profile.companyOrProject);
+        setAbout(r.profile.aboutMe); setCurrentWork(r.profile.currentWork); setFavoriteDrink(r.profile.favoriteDrink);
+        setAvatarUrl(r.profile.avatarUrl);
+      }
+      setLinks(r.links);
+      if (r.sessionId) setSessionId(r.sessionId);
+      if (r.recommendationId) setRecommendationId(r.recommendationId);
+      if (r.matchExpiresAt) setMatchExpiresAt(r.matchExpiresAt);
+      // Never clobber a step the visitor has already navigated to during the async window.
+      setStep((current) => (current !== 0 ? current : r.step));
+      hydrateMatch(r);
+    }).catch(() => {
+      if (cancelled) return;
+      setSetup("setup_required"); setAuthMode("preview");
+    }).finally(() => { if (!cancelled) setResuming(false); });
+
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step, terminal]);
   // Location check is an opt-in beta the visitor toggles in account settings (off by default),
@@ -309,7 +289,7 @@ export function ExaOnboarding() {
   }, []);
   // Ask for a mode the first time a signed-in visitor lands on home without a saved choice.
   useEffect(() => {
-    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev")) setShowModeModal(true);
+    if (!resuming && !modeChosen && step === 7 && (authMode === "otp" || authMode === "magiclink" || authMode === "dev" || authMode === "password")) setShowModeModal(true);
   }, [resuming, modeChosen, step, authMode]);
   // Close the avatar photo-source menu when clicking anywhere outside it.
   useEffect(() => {
