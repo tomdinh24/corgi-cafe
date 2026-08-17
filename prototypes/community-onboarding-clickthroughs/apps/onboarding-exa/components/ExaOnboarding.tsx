@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { PersonCandidate } from "@corgi/onboarding-shared";
 import { SiteHeader } from "./SiteHeader";
@@ -91,7 +91,11 @@ export function ExaOnboarding() {
   const [commercial, setCommercial] = useState({ fundraising: false, recruiting: false, sales: false });
   const [photoSelf, setPhotoSelf] = useState(false);
   const [photoNearby, setPhotoNearby] = useState(false);
-  const [feedback, setFeedback] = useState<"not_useful" | "okay" | "useful" | "">("");
+  const [uploadingPhoto, setUploadingPhoto] = useState<"" | "self" | "nearby">("");
+  const selfPhotoInputRef = useRef<HTMLInputElement>(null);
+  const nearbyPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [meetingSecondsLeft, setMeetingSecondsLeft] = useState(600);
+  const [feedback, setFeedback] = useState<"" | "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful">("");
   const [sessionId, setSessionId] = useState("");
   const [recommendationId, setRecommendationId] = useState("");
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
@@ -136,6 +140,33 @@ export function ExaOnboarding() {
     const heading = document.querySelector<HTMLElement>(".journey-screen h1");
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   }, [step, terminal]);
+  // Real countdown for finding-each-other, reset every time a fresh introduction starts.
+  useEffect(() => {
+    if (step !== 14) return;
+    setMeetingSecondsLeft(600);
+    const interval = setInterval(() => setMeetingSecondsLeft((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(interval);
+  }, [step, recommendationId]);
+  // The person already waiting in the pool has no way to learn their session was paired by
+  // someone else's request_introduction call — poll their own session while on the "still
+  // looking" screen so they get carried into the introduction automatically.
+  useEffect(() => {
+    if (step !== 18 || !sessionId || setup !== "configured") return;
+    let cancelled = false;
+    const checkStatus = async () => {
+      try {
+        const result = await jsonGet(`/api/session/${sessionId}`);
+        if (cancelled || result.status !== "introduced" || !result.recommendationId) return;
+        setRecommendationId(result.recommendationId);
+        const person = await jsonGet(`/api/introduction/${result.recommendationId}`);
+        if (cancelled) return;
+        setCounterpart({ firstName: person.firstName ?? "Someone", roleTitle: person.roleTitle ?? "", currentWork: person.currentWork ?? "", reason: person.reason ?? "" });
+        go(11);
+      } catch { /* keep polling */ }
+    };
+    const interval = setInterval(checkStatus, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [step, sessionId, setup]);
   const person = counterpart ?? PREVIEW_COUNTERPART;
   const personInitial = (person.firstName[0] ?? "?").toUpperCase();
   // Both eligibility checks are simulated as passing in this build (see step 8). Once real
@@ -155,11 +186,20 @@ export function ExaOnboarding() {
     setAccountMenuOpen(false);
     try { await fetch("/api/auth/logout", { method: "POST" }); } finally { window.location.href = redirectTo; }
   };
-  function Shell({ step: shellStep, children, wide = false, hideProgress = false }: { step: number; children: ReactNode; wide?: boolean; hideProgress?: boolean }) {
+  // Shell must keep a stable identity across renders — defining a component function inline in
+  // the render body (as this used to) makes React remount its whole subtree on every keystroke
+  // anywhere in the app (any state change here creates a "new" Shell type), which drops focus out
+  // of every input after one character. It's created once via useMemo and reads the account/auth
+  // values it needs from a ref that's refreshed every render, so it stays fresh without being
+  // recreated.
+  const shellState = useRef({ accountMenuOpen, accountInitials, email, authMode, logout });
+  shellState.current = { accountMenuOpen, accountInitials, email, authMode, logout };
+  const Shell = useMemo(() => function Shell({ step: shellStep, children, wide = false, hideProgress = false }: { step: number; children: ReactNode; wide?: boolean; hideProgress?: boolean }) {
+    const { accountMenuOpen, accountInitials, email, authMode, logout } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
     return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu"><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill">SF DeFi · Corgi Cafe</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
-  }
+  }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
   const saveDecision = (choice: "continue" | "pass") => {
     if (!recommendationId) return;
@@ -169,9 +209,22 @@ export function ExaOnboarding() {
     if (!recommendationId) return;
     await save({ kind: "meeting", meeting: { recommendationId, answer } }).catch(() => undefined);
   };
-  const saveFeedback = (rating: "not_useful" | "okay" | "useful") => {
+  const saveFeedback = (rating: "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful") => {
     if (!recommendationId) return;
     void save({ kind: "feedback", feedback: { recommendationId, rating } }).catch(() => undefined);
+  };
+  const uploadRecognitionPhoto = async (kind: "self" | "nearby", file: File | undefined) => {
+    if (!file || !recommendationId) return;
+    setUploadingPhoto(kind); setError("");
+    try {
+      const form = new FormData();
+      form.set("file", file); form.set("kind", kind); form.set("recommendationId", recommendationId);
+      const response = await fetch("/api/recognition", { method: "POST", body: form });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "Your photo could not be uploaded.");
+      if (kind === "self") setPhotoSelf(true); else setPhotoNearby(true);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Your photo could not be uploaded."); }
+    finally { setUploadingPhoto(""); }
   };
 
   const startEmail = async (event: FormEvent) => {
@@ -286,9 +339,9 @@ export function ExaOnboarding() {
   if (step === 9) return <Shell step={9} wide><Header eyebrow="Today at Corgi" title="What type of conversation do you want?"/><div className="journey-stack"><button className={`mode-card ${conversationMode === "specific" ? "selected" : ""}`} onClick={() => setConversationMode("specific")}><strong>I have something in mind</strong><small>Choose a topic for today.</small></button><button className={`mode-card ${conversationMode === "open" ? "selected" : ""}`} onClick={() => setConversationMode("open")}><strong>Just looking to meet interesting people</strong><small>Corgi will still look for a thoughtful fit.</small></button></div><hr className="section-divider" />{conversationMode === "specific" && <section className="topic-panel"><h2>What’s on your mind?</h2><div className="topic-grid">{[...topicOptions, "Other"].map((topic) => <button key={topic} className={topics.includes(topic) ? "selected" : ""} aria-pressed={topics.includes(topic)} onClick={() => setTopics(topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic])}>{topic}</button>)}</div>{topics.includes("Other") && <TextBox label="Tell us what’s on your mind" value={otherTopic} onChange={(e) => setOtherTopic(e.target.value)} />}</section>}<div className="journey-grid intent-details"><TextBox label="What would you like help on?" value={useful} onChange={(e) => setUseful(e.target.value)} /><TextBox label="What can you help with?" value={offer} onChange={(e) => setOffer(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || (conversationMode === "specific" && (topics.length === 0 || (topics.includes("Other") && !otherTopic.trim())))} onClick={startSession}>Continue</Primary></Actions></Shell>;
   if (step === 10) return <Shell step={10}><div className="loader" aria-label="Finding someone"><i/><i/><i/></div><div className="center"><Header eyebrow="One moment" title="Corgi is finding someone worth meeting.">We’ll only make an introduction when the conversation looks promising.</Header><aside className="community-note"><strong>A quick community note</strong><span>Keep it conversational. No direct fundraising asks or recruiting.</span></aside></div></Shell>;
   if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div><div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={() => { record("introduction_continue"); saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
-  if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button className={`capture-image ${photoSelf ? "taken" : ""}`} onClick={() => setPhotoSelf(true)}>{photoSelf ? "✓" : "+"}</button><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo taken" : "Photo needed"}</small></article><article><button className={`capture-image nearby ${photoNearby ? "taken" : ""}`} onClick={() => setPhotoNearby(true)}>{photoNearby ? "✓" : "+"}</button><strong>What you can see nearby</strong><small>{photoNearby ? "Photo taken" : "Photo needed"}</small></article></div><p className="pair-note">Only {person.firstName} can see these. They’re temporary. This prototype does not upload photos.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
-  if (step === 14) return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer"><strong>10:00</strong><span>left</span></div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>;
+  if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelf ? "✓" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearby ? "✓" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
+  if (step === 14) { const timerMinutes = String(Math.floor(meetingSecondsLeft / 60)).padStart(2, "0"); const timerSeconds = String(meetingSecondsLeft % 60).padStart(2, "0"); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer"><strong>{timerMinutes}:{timerSeconds}</strong><span>left</span></div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
   if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => <span key={index}><strong>{link.kind === "website" ? "Website" : link.kind === "github" ? "GitHub" : link.kind === "social" ? "Social" : "Link"}</strong>{link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;
-  if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['not_useful','Not useful'],['okay','Okay'],['useful','Useful']] as const).map(([value,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value); }}>{label}</button>)}</div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { record("meet_another_selected"); setFeedback(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { record("intro_session_finished"); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
+  if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['very_unhelpful','😞','Not useful'],['unhelpful','🙁','Not really'],['neutral','😐','Okay'],['helpful','🙂','Useful'],['very_helpful','😄','Very useful']] as const).map(([value,emoji,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} aria-label={label} title={label} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value); }}><span aria-hidden="true">{emoji}</span></button>)}</div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { record("meet_another_selected"); setFeedback(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { record("intro_session_finished"); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
   return <Shell step={18}><div className="center"><div className="mail-mark">@</div><Header eyebrow="No introduction yet" title="We’re still looking">We’ll email you when Corgi finds someone worth meeting.</Header><p className="preview-note">Notification delivery is not implemented in this build.</p><Actions><Primary onClick={() => { record("notify_me_requested"); setTerminal("notify"); }}>Notify me</Primary><Quiet onClick={() => go(7)}>Cancel</Quiet></Actions></div></Shell>;
 }

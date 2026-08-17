@@ -55,8 +55,10 @@ test("approved onboarding and matching happy path reaches private feedback", asy
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Meet Rowan" })).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "+" }).first().click();
-  await page.getByRole("button", { name: "+" }).click();
+  const dummyPhoto = { name: "photo.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
+  await page.locator('input[type="file"]').nth(0).setInputFiles(dummyPhoto);
+  await page.locator('input[type="file"]').nth(1).setInputFiles(dummyPhoto);
+  await expect(page.getByRole("button", { name: "Share with Rowan" })).toBeEnabled();
   await page.getByRole("button", { name: "Share with Rowan" }).click();
   await page.getByRole("button", { name: "Yes, we met" }).click();
   await expect(page.getByText("Only links Rowan approved for after an in-person meeting.")).toBeVisible();

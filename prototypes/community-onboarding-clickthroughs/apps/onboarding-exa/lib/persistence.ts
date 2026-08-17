@@ -51,7 +51,7 @@ export const MeetingPayloadSchema = z.object({
 
 export const FeedbackPayloadSchema = z.object({
   recommendationId: z.string().uuid(),
-  rating: z.enum(["not_useful", "okay", "useful"]),
+  rating: z.enum(["very_unhelpful", "unhelpful", "neutral", "helpful", "very_helpful"]),
   note: z.string().trim().max(600).optional(),
 });
 
