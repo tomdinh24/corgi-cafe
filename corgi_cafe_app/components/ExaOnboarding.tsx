@@ -125,9 +125,11 @@ export function ExaOnboarding() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [setup, setSetup] = useState<SetupMode>("checking");
-  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink" | "otp">("checking");
+  const [authMode, setAuthMode] = useState<"checking" | "preview" | "dev" | "magiclink" | "otp" | "password">("checking");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [authIntent, setAuthIntent] = useState<"signup" | "signin">(() => (pathname === "/sign-in" ? "signin" : "signup"));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -230,9 +232,9 @@ export function ExaOnboarding() {
     configPromise.then(async (data) => {
       setSetup(data.supabase);
       setAuthMode(data.authMode ?? "preview");
-      if (data.authMode === "otp" || data.authMode === "magiclink" || data.authMode === "dev") {
-        // Already signed in (OTP-verified this tab, magic-link return, or a live session from
-        // earlier tonight)? Resume
+      if (data.authMode === "otp" || data.authMode === "magiclink" || data.authMode === "dev" || data.authMode === "password") {
+        // Already signed in (password sign-in this tab, OTP-verified this tab, magic-link return, or
+        // a live session from earlier tonight)? Resume
         // where they left off instead of re-running onboarding from scratch.
         try {
           const status = await statusPromise;
@@ -508,6 +510,25 @@ export function ExaOnboarding() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "That code did not work."); }
     finally { setLoading(false); }
   };
+  // Email + password (configured "password" mode). Sign-up creates the account and drops straight
+  // into onboarding; sign-in restores the session and reloads so the boot gate resumes the member
+  // where they left off (home / match / onboarding). No email is sent, so this works for any user.
+  const submitPassword = async (event: FormEvent) => {
+    event.preventDefault(); setError("");
+    if (authIntent === "signup") {
+      if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+      if (password !== confirmPassword) { setError("Those passwords do not match."); return; }
+    } else if (!password) { setError("Enter your password."); return; }
+    setLoading(true);
+    try {
+      const path = authIntent === "signup" ? "/api/auth/signup" : "/api/auth/signin";
+      const result = await jsonPost(path, { email, password });
+      if (result.mode === "confirm_required") { setNotice(result.message); return; }
+      if (authIntent === "signin") { window.location.assign("/"); return; }
+      go(2);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "That did not work. Try again."); }
+    finally { setLoading(false); }
+  };
   const search = async () => {
     setLoading(true); setError("");
     try {
@@ -642,7 +663,17 @@ export function ExaOnboarding() {
     return <Shell step={12}><div className="terminal-mark">✓</div><Header eyebrow={content[0]} title={content[1]}>{content[2]}</Header>{terminal === "pass" ? <Actions><Primary onClick={() => { record("meet_another_after_pass"); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); setTerminal(""); goMeetSomeone(); }}>Start new chat</Primary><Secondary onClick={() => { record("pass_session_finished"); setTerminal("finished"); }}>Maybe later</Secondary></Actions> : <Actions><Primary onClick={() => { setTerminal(""); go(7); }}>Back to Corgi</Primary></Actions>}</Shell>;
   }
 
-  if (step === 0) return <Shell step={0}><Header eyebrow="Let’s start" title={authIntent === "signin" ? "Sign in to Corgi." : "Start an introduction."}>{authIntent === "signin" ? "Enter the email on your Corgi account and we’ll send you a sign-in link." : "Sign up to create a profile for conversations at Corgi."}</Header>{setup === "setup_required" && <aside className="setup-banner"><strong>Database setup needed</strong><span>You can review the flow, but accounts and interactions will not be saved until Supabase is connected.</span></aside>}<form onSubmit={startEmail}><div className="journey-stack"><Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || !email.includes("@")} type="submit">{loading ? "Sending…" : authIntent === "signin" ? "Sign in" : "Sign up"}</Primary></Actions></form><p className="auth-switch">{authIntent === "signin" ? <>New here? <button type="button" onClick={() => setAuthIntent("signup")}>Sign up</button></> : <>Already have an account? <button type="button" onClick={() => setAuthIntent("signin")}>Sign in</button></>}</p><div className="divider">or</div><a className="journey-button secondary google-button" href="/api/auth/google"><GoogleMark />Continue with Google</a></Shell>;
+  if (step === 0) {
+    const isPassword = authMode === "password";
+    const subtitle = authIntent === "signin"
+      ? (isPassword ? "Enter the email and password on your Corgi account." : "Enter the email on your Corgi account and we’ll send you a sign-in link.")
+      : (isPassword ? "Sign up with your email and a password to create a profile for conversations at Corgi." : "Sign up to create a profile for conversations at Corgi.");
+    const canSubmit = isPassword
+      ? (email.includes("@") && password.length >= (authIntent === "signup" ? 8 : 1) && (authIntent === "signin" || password === confirmPassword))
+      : email.includes("@");
+    const buttonLabel = loading ? (isPassword ? "Please wait…" : "Sending…") : authIntent === "signin" ? "Sign in" : "Sign up";
+    return <Shell step={0}><Header eyebrow="Let’s start" title={authIntent === "signin" ? "Sign in to Corgi." : "Start an introduction."}>{subtitle}</Header>{setup === "setup_required" && <aside className="setup-banner"><strong>Database setup needed</strong><span>You can review the flow, but accounts and interactions will not be saved until Supabase is connected.</span></aside>}<form onSubmit={isPassword ? submitPassword : startEmail}><div className="journey-stack"><Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />{isPassword && <Field label="Password" type="password" autoComplete={authIntent === "signin" ? "current-password" : "new-password"} required value={password} onChange={(e) => setPassword(e.target.value)} />}{isPassword && authIntent === "signup" && <Field label="Confirm password" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />}</div>{isPassword && authIntent === "signup" && <p className="preview-note">Use at least 8 characters.</p>}{error && <p className="journey-error">{error}</p>}{notice && <p className="inline-status">{notice}</p>}<Actions><Primary disabled={loading || !canSubmit} type="submit">{buttonLabel}</Primary></Actions></form><p className="auth-switch">{authIntent === "signin" ? <>New here? <button type="button" onClick={() => { setAuthIntent("signup"); setError(""); setNotice(""); }}>Sign up</button></> : <>Already have an account? <button type="button" onClick={() => { setAuthIntent("signin"); setError(""); setNotice(""); }}>Sign in</button></>}</p><div className="divider">or</div><a className="journey-button secondary google-button" href="/api/auth/google"><GoogleMark />Continue with Google</a></Shell>;
+  }
   if (step === 1) {
     const masked = email.replace(/^(.).+(@.*)$/, "$1•••$2");
     if (authMode === "magiclink") return <Shell step={1}><Header eyebrow="Check your email" title="Click your sign-in link.">We emailed a secure sign-in link to {masked}. Open it on this device and Corgi brings you right back here, signed in.</Header><Actions><Secondary type="button" onClick={() => jsonPost("/api/auth/start", { email }).then(() => setNotice("A new link is on its way.")).catch(() => setError("We could not resend the link."))}>Resend link</Secondary><Quiet type="button" onClick={() => go(0)}>Use a different email</Quiet></Actions>{notice && <p className="inline-status">{notice}</p>}{error && <p className="journey-error">{error}</p>}</Shell>;
