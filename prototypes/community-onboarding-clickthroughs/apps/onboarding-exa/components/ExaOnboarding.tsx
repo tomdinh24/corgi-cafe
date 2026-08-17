@@ -101,6 +101,11 @@ export function ExaOnboarding() {
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  // Account settings overlay (edit profile / links / delete account), opened from the header menu.
+  const [accountView, setAccountView] = useState(false);
+  const [accountNotice, setAccountNotice] = useState("");
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // True until we know whether this visitor already has a live session (and a claimed profile) to
   // resume into — gates the very first paint so we never flash the sign-up screen before jumping
   // straight to a resumed session.
@@ -122,6 +127,15 @@ export function ExaOnboarding() {
             setFirstName(profile.firstName ?? ""); setLastName(profile.lastName ?? "");
             setLocation(profile.broadLocation ?? ""); setRole(profile.roleTitle ?? ""); setCompany(profile.companyOrProject ?? "");
             setAbout(profile.aboutMe ?? ""); setCurrentWork(profile.currentWork ?? ""); setFavoriteDrink(profile.favoriteDrink ?? "");
+          }
+          if (Array.isArray(status.sources) && status.sources.length) {
+            setLinks((current) => {
+              const next = { ...current };
+              for (const source of status.sources) {
+                if (source && typeof source.kind === "string" && source.kind in next) next[source.kind as LinkKind] = source.url ?? "";
+              }
+              return next;
+            });
           }
           setStep((current) => (current !== 0 ? current : profile?.confirmed ? 7 : 2));
         } catch { /* stay on the email step */ }
@@ -186,24 +200,29 @@ export function ExaOnboarding() {
     setAccountMenuOpen(false);
     try { await fetch("/api/auth/logout", { method: "POST" }); } finally { window.location.href = redirectTo; }
   };
+  // Defined here (before Shell/shellState reference it) so the header menu can open account settings.
+  const openAccount = () => { setAccountMenuOpen(false); setError(""); setAccountNotice(""); setDeleteArmed(false); setAccountView(true); };
   // Shell must keep a stable identity across renders — defining a component function inline in
   // the render body (as this used to) makes React remount its whole subtree on every keystroke
   // anywhere in the app (any state change here creates a "new" Shell type), which drops focus out
   // of every input after one character. It's created once via useMemo and reads the account/auth
   // values it needs from a ref that's refreshed every render, so it stays fresh without being
   // recreated.
-  const shellState = useRef({ accountMenuOpen, accountInitials, email, authMode, logout });
-  shellState.current = { accountMenuOpen, accountInitials, email, authMode, logout };
+  const shellState = useRef({ accountMenuOpen, accountInitials, email, authMode, logout, openAccount });
+  shellState.current = { accountMenuOpen, accountInitials, email, authMode, logout, openAccount };
   const Shell = useMemo(() => function Shell({ step: shellStep, children, wide = false, hideProgress = false }: { step: number; children: ReactNode; wide?: boolean; hideProgress?: boolean }) {
-    const { accountMenuOpen, accountInitials, email, authMode, logout } = shellState.current;
+    const { accountMenuOpen, accountInitials, email, authMode, logout, openAccount } = shellState.current;
     const progress = Math.min(100, Math.max(8, ((Math.min(shellStep, 7) + 1) / 7) * 100));
     const showAccount = shellStep >= 7 && authMode !== "preview" && authMode !== "checking";
-    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu"><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill">SF DeFi · Corgi Cafe</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
+    return <main className="journey-shell"><SiteHeader right={<>{showAccount && <div className="account-menu"><button type="button" className="account-avatar" aria-haspopup="true" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>{accountInitials}</button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-email-row"><span className="account-email-label">Signed in as</span><span className="account-email">{email}</span></div><button type="button" role="menuitem" onClick={openAccount}>Account settings</button><button type="button" role="menuitem" onClick={() => logout()}>Log out</button></div>}</div>}<span className="cafe-pill">SF DeFi · Corgi Cafe</span></>} />{!hideProgress && shellStep <= 6 && <div className="journey-progress" role="progressbar" aria-label={`Onboarding step ${shellStep + 1} of 7`} aria-valuemin={1} aria-valuemax={7} aria-valuenow={shellStep + 1}><span style={{ width: `${progress}%` }} /></div>}<section className={`journey-screen ${wide ? "wide" : ""}`}>{children}</section></main>;
   }, []);
   // Post-introduction writes. Guarded on a real recommendation id, so preview mode never posts them.
-  const saveDecision = (choice: "continue" | "pass") => {
+  // Awaitable: the recognition-media upload (next step) is gated by RLS on this decision being
+  // recorded as "continue". Callers that advance into the photo step must await it, or the upload
+  // races ahead of the write and is rejected ("Your photo could not be uploaded").
+  const saveDecision = async (choice: "continue" | "pass") => {
     if (!recommendationId) return;
-    void save({ kind: "decision", decision: { recommendationId, choice } }).catch(() => undefined);
+    try { await save({ kind: "decision", decision: { recommendationId, choice } }); } catch { /* ignore */ }
   };
   const saveMeeting = async (answer: "met" | "not_yet") => {
     if (!recommendationId) return;
@@ -268,6 +287,24 @@ export function ExaOnboarding() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Your profile could not be saved."); }
     finally { setLoading(false); }
   };
+  const closeAccount = () => { setAccountView(false); setDeleteArmed(false); setAccountNotice(""); };
+  // Save profile edits without leaving the settings screen (upsert, so it updates the existing row).
+  const saveAccount = async () => {
+    setLoading(true); setError(""); setAccountNotice("");
+    try {
+      await save({ kind: "profile", profile: { firstName, lastName, broadLocation: location, roleTitle: role, companyOrProject: company, aboutMe: about, currentWork, favoriteDrink, sources: cleanLinks } });
+      setAccountNotice("Saved.");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Your changes could not be saved."); }
+    finally { setLoading(false); }
+  };
+  const deleteAccount = async () => {
+    setDeleting(true); setError("");
+    try {
+      const response = await fetch("/api/account/delete", { method: "POST" });
+      if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.message || "Your account could not be deleted."); }
+      window.location.href = "/";
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Your account could not be deleted."); setDeleting(false); }
+  };
   const chooseBranch = async () => {
     if (branch === "community") { try { await save({ kind: "community_interest" }); } catch { /* screen remains truthful */ } setTerminal("community"); return; }
     if (branch === "later") { record("onboarding_deferred"); await logout("/"); return; }
@@ -318,6 +355,8 @@ export function ExaOnboarding() {
 
   if (resuming) return <Shell step={0} hideProgress><div className="center"><div className="loader" aria-label="Checking your session"><i/><i/><i/></div></div></Shell>;
 
+  if (accountView) return <Shell step={7} wide><Header eyebrow="Account" title="Your profile">Edit your details, add links, or delete your account. Everything here came from your onboarding and stays editable.</Header><div className="journey-grid"><Field label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /><Field label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></div><div className="journey-stack"><Field label="City or region" value={location} onChange={(e) => setLocation(e.target.value)} /><Field label="Role or title" value={role} onChange={(e) => setRole(e.target.value)} /><Field label="Company or project" value={company} onChange={(e) => setCompany(e.target.value)} /><TextBox label="About me" value={about} onChange={(e) => setAbout(e.target.value)} /><Field label="What are you working on?" value={currentWork} onChange={(e) => setCurrentWork(e.target.value)} /><Field label="Favorite drink at Corgi Cafe" value={favoriteDrink} onChange={(e) => setFavoriteDrink(e.target.value)} /></div><hr className="section-divider" /><h2 className="account-section-title">Links</h2><div className="journey-stack"><Field label="LinkedIn" type="url" value={links.linkedin_identifier} onChange={(e) => setLinks({ ...links, linkedin_identifier: e.target.value })} /><Field label="Personal or company website" type="url" value={links.website} onChange={(e) => setLinks({ ...links, website: e.target.value })} /><Field label="GitHub" type="url" value={links.github} onChange={(e) => setLinks({ ...links, github: e.target.value })} /><Field label="Other public link" type="url" value={links.social} onChange={(e) => setLinks({ ...links, social: e.target.value })} /></div>{error && <p className="journey-error">{error}</p>}{accountNotice && <p className="inline-status">{accountNotice}</p>}<Actions><Primary onClick={saveAccount} disabled={loading || deleting}>{loading ? "Saving…" : "Save changes"}</Primary><Secondary onClick={closeAccount} disabled={deleting}>Done</Secondary></Actions><div className="danger-zone"><h2>Delete account</h2><p>Permanently removes your profile, links, and history. This can’t be undone.</p>{!deleteArmed ? <button type="button" className="journey-button danger" onClick={() => setDeleteArmed(true)}>Delete my account</button> : <div className="danger-confirm"><p><strong>Are you sure?</strong> This permanently deletes everything.</p><Actions><button type="button" className="journey-button danger" onClick={deleteAccount} disabled={deleting}>{deleting ? "Deleting…" : "Yes, delete forever"}</button><Quiet onClick={() => setDeleteArmed(false)} disabled={deleting}>Cancel</Quiet></Actions></div>}</div></Shell>;
+
   if (terminal) {
     const content = terminal === "community" ? ["Interest recorded", "You’re on the list.", setup === "configured" ? "Corgi recorded your interest in the private community. Membership and access are separate." : "This preview did not save your interest because Supabase is not connected."] : terminal === "later" ? ["Come back anytime", "Your profile is ready.", setup === "configured" ? "Your confirmed profile is saved. Start an intro session during another Cafe visit." : "This preview did not save a profile because Supabase is not connected."] : terminal === "pass" ? ["Introduction ended", "No awkward moment.", "No one is told who passed or why. Any temporary photos are removed promptly."] : terminal === "not_met" ? ["Couldn’t meet this time", "Nothing was recorded.", "Links stay private and temporary photos are removed promptly."] : terminal === "notify" ? ["No introduction yet", "We’ll let you know.", "We’ll email you as soon as Corgi finds someone worth meeting."] : ["All set", "Thanks for showing up.", "Your private feedback helps Corgi make future introductions more useful."];
     return <Shell step={12}><div className="terminal-mark">✓</div><Header eyebrow={content[0]} title={content[1]}>{content[2]}</Header><Actions><Primary onClick={() => { setTerminal(""); go(7); }}>Back to Corgi</Primary></Actions></Shell>;
@@ -338,7 +377,7 @@ export function ExaOnboarding() {
   if (step === 8) return <Shell step={8}><Header eyebrow="Meet at the Cafe" title="Two quick checks">You’ll need both to meet someone here.</Header><div className="eligibility-grid"><article><span>✓</span><div><strong>Ordered here today?</strong><small>Yes, confirmed for this account.</small></div></article><article><span>✓</span><div><strong>At Corgi now?</strong><small>Yes, current Cafe check passed.</small></div></article></div><aside className="ready-strip"><strong>You’re ready.</strong><span>Only the Cafe result is kept, not exact coordinates or movement.</span></aside><Actions><Primary onClick={() => go(9)}>Choose a conversation</Primary></Actions></Shell>;
   if (step === 9) return <Shell step={9} wide><Header eyebrow="Today at Corgi" title="What type of conversation do you want?"/><div className="journey-stack"><button className={`mode-card ${conversationMode === "specific" ? "selected" : ""}`} onClick={() => setConversationMode("specific")}><strong>I have something in mind</strong><small>Choose a topic for today.</small></button><button className={`mode-card ${conversationMode === "open" ? "selected" : ""}`} onClick={() => setConversationMode("open")}><strong>Just looking to meet interesting people</strong><small>Corgi will still look for a thoughtful fit.</small></button></div><hr className="section-divider" />{conversationMode === "specific" && <section className="topic-panel"><h2>What’s on your mind?</h2><div className="topic-grid">{[...topicOptions, "Other"].map((topic) => <button key={topic} className={topics.includes(topic) ? "selected" : ""} aria-pressed={topics.includes(topic)} onClick={() => setTopics(topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic])}>{topic}</button>)}</div>{topics.includes("Other") && <TextBox label="Tell us what’s on your mind" value={otherTopic} onChange={(e) => setOtherTopic(e.target.value)} />}</section>}<div className="journey-grid intent-details"><TextBox label="What would you like help on?" value={useful} onChange={(e) => setUseful(e.target.value)} /><TextBox label="What can you help with?" value={offer} onChange={(e) => setOffer(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || (conversationMode === "specific" && (topics.length === 0 || (topics.includes("Other") && !otherTopic.trim())))} onClick={startSession}>Continue</Primary></Actions></Shell>;
   if (step === 10) return <Shell step={10}><div className="loader" aria-label="Finding someone"><i/><i/><i/></div><div className="center"><Header eyebrow="One moment" title="Corgi is finding someone worth meeting.">We’ll only make an introduction when the conversation looks promising.</Header><aside className="community-note"><strong>A quick community note</strong><span>Keep it conversational. No direct fundraising asks or recruiting.</span></aside></div></Shell>;
-  if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div><div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={() => { record("introduction_continue"); saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
+  if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><div className="intro-person-text"><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div></div><div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={() => { record("introduction_continue"); saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
   if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelf ? "✓" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearby ? "✓" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
   if (step === 14) { const timerMinutes = String(Math.floor(meetingSecondsLeft / 60)).padStart(2, "0"); const timerSeconds = String(meetingSecondsLeft % 60).padStart(2, "0"); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer"><strong>{timerMinutes}:{timerSeconds}</strong><span>left</span></div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
   if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => <span key={index}><strong>{link.kind === "website" ? "Website" : link.kind === "github" ? "GitHub" : link.kind === "social" ? "Social" : "Link"}</strong>{link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;

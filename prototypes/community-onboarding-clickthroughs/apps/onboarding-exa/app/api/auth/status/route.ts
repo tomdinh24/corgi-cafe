@@ -16,6 +16,10 @@ export async function GET() {
     .select("first_name,last_name,broad_location,role_title,company_or_project,about_me,current_work,favorite_drink,confirmed_at")
     .eq("member_id", data.user.id)
     .maybeSingle();
+  const { data: sources } = await supabase!
+    .from("profile_sources")
+    .select("source_kind,source_url")
+    .eq("member_id", data.user.id);
   return NextResponse.json({
     authenticated: true,
     email: data.user.email ?? "",
@@ -32,5 +36,6 @@ export async function GET() {
           confirmed: Boolean(profile.confirmed_at),
         }
       : null,
+    sources: (sources ?? []).map((s) => ({ kind: s.source_kind as string, url: s.source_url as string })),
   });
 }
