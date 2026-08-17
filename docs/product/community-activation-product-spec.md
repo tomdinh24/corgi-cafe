@@ -9,7 +9,7 @@
 **Depends on:** [Community activation problem brief](./community-activation-problem-brief.md)  
 **Product review:** Standing Product Lead approved for human product acceptance
 
-**Related work:** [Landing-page handoff](./post-order-discovery-landing-page-handoff.md) · [Canonical onboarding prototype](./community-onboarding-exa-prototype.md) · [Onboarding enrichment proposal](./onboarding-enrichment-proposal.md)
+**Related work:** [Landing-page handoff](./post-order-discovery-landing-page-handoff.md) · [Onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md)
 
 ---
 
@@ -92,10 +92,10 @@ The shared target condition is more important than the persona label:
 3. **Enter email:** The visitor enters an email address, including Gmail, and sees the applicable privacy disclosure before any production lookup.
 4. **Verify email:** The visitor enters a short-lived one-time passcode.
 5. **Identify:** The visitor enters first name, last name, and broad city or metro area on focused, sequential screens.
-6. **Find a profile:** The canonical prototype searches through its internal recovered adapter and asks the visitor to select an unconfirmed candidate. Unavailable search, no result, and rejected candidates preserve a manual fallback. The exact executable flow and its provider-neutral presentation are owned by the [canonical onboarding prototype](./community-onboarding-exa-prototype.md).
-7. **Add context:** After candidate selection or the manual choice, the prototype offers four optional public-link fields: LinkedIn profile, personal or company website, GitHub, and other social. Links are locally normalized and validated; they are not fetched, enriched, or sent to search.
-8. **Confirm the profile:** The prototype builds one editable profile for review. A candidate remains unconfirmed until the visitor explicitly selects it, and the prototype does not create or save a durable profile.
-9. **Choose a path:** The visitor chooses `Connect at Corgi now`, `Record private-community interest`, or `Maybe later`. The interest choice grants no membership, visibility, or contact permission. In the prototype, neither branch submits or saves anything.
+6. **Find a profile:** Corgi searches Crustdata and asks the visitor to select a sourced candidate. If confidence is low or no candidate is correct, Corgi requests a LinkedIn URL and preserves a short manual fallback.
+7. **Add context:** The visitor may add one personal, company, portfolio, GitHub, or other professional URL to improve enrichment.
+8. **Confirm the profile:** Corgi builds one sourced, editable profile. No candidate or imported field becomes durable until the visitor confirms or corrects it.
+9. **Choose a path:** The visitor chooses `Connect at Corgi now`, `Record private-community interest`, or `Maybe later`. The interest choice grants no membership; maybe later saves the profile and exits privately.
 10. **Confirm current intent:** On the in-person path, Corgi presents a small set of inferred intent suggestions as selected, editable chips. The visitor deselects incorrect suggestions, adds missing ones, confirms what they can offer, and explicitly sets availability, boundaries, visibility, notifications, and session expiration. Commercial permissions always begin off.
 11. **Recommend or wait:** Corgi evaluates present, mutually eligible members. It either delivers a simultaneous, explained recommendation or provides an honest waiting state with expiry and adjustment controls.
 12. **Meet:** Both receive recognition context and a natural conversation opener.
@@ -133,15 +133,12 @@ The shared target condition is more important than the persona label:
 
 Onboarding should be progressive: collect the minimum needed for a credible first introduction, then enrich the durable profile over time.
 
-The canonical prototype uses an internal recovered search adapter to search member-entered name,
-broad location, company or project, and role; it presents no more than three unconfirmed candidates.
-Provider failure, ambiguity, or member preference leads to a short manual flow without blocking
-same-visit activation. The prototype does not enrich public links: LinkedIn is identifier-only and
-never fetched, while all other links are retained only in the in-memory review flow. See the
-[canonical onboarding prototype](./community-onboarding-exa-prototype.md) for the executable
-contract. The [onboarding enrichment proposal](./onboarding-enrichment-proposal.md) preserves
-separate historical research, pricing, legal, privacy, and go/no-go material; it does not approve a
-provider or public-link processing.
+The proposed first enrichment experiment uses Crustdata to search by exact full name and broad
+location, presents no more than three candidates, and calls base enrichment only after the member
+confirms a candidate. Crustdata is not yet approved for production. Provider failure, ambiguity, or
+member preference must lead to a short manual flow without blocking same-visit activation. See the
+[onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md) for pricing, legal, privacy,
+and go/no-go criteria.
 
 ### Explicit durable context
 

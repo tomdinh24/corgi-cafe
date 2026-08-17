@@ -1,83 +1,107 @@
-# Corgi Cafe introductions prototype
+# Corgi Exa Onboarding Prototype
 
-- **Status:** Canonical internal prototype
-- **Date:** August 16, 2026
+- **Status:** Ready for internal owner evaluation
+- **Date:** August 15, 2026
 - **Owners:** Design Lead, Engineering Manager, and Product Lead
-- **Production provider decision:** None
+- **Production decision:** None
 
 ## Purpose
 
-The prototype lets a Cafe member verify a local session, identify or manually create a professional profile, review every detail, and explicitly choose what conversation is welcome today. It ends before matching. It does not create accounts, save profiles, confirm Cafe presence, find other people, rank people, or display a recommendation.
+This prototype uses Exa People Search to find structured public professional profiles, then asks the
+member to confirm one identity candidate before reviewing an editable profile. The standalone Manual
+and AI Web prototypes have been retired. Exa retains a short in-flow manual fallback so a missing
+key, provider failure, or no-match result never blocks onboarding.
 
-The implementation retains the recovered profile-search adapter internally. No provider or variation appears in metadata, navigation, progress, controls, errors, or terminal states. A provider choice is not approved by this prototype.
+The experiment ends at `Ready for recommendations`. It does not create accounts, save profiles,
+confirm Cafe presence, find people, rank people, or display a recommendation.
 
-## Canonical routes and experience
+## Shared experience contract
 
-The Next.js app serves:
-
-- `/`: the canonical Corgi landing page, including the in-Cafe invitation, three-step mechanism, example introduction, ground rules, and direct `Start an intro` link;
-- `/start`: onboarding beginning directly at email.
-
-The five visible phases are **Sign in**, **About you**, **Profile**, **Today**, and **Review**. The accessible progressbar reports the current actionable screen out of 16. The implementation uses these named flow states:
-
-```text
-account.email → account.otp
-→ identity.firstName → identity.lastName → identity.location
-→ identity.company → identity.role
-→ profile.lookup → profile.candidates
-→ profile.publicLinks → profile.review
-→ path.choose
-→ connect.topics → connect.boundaries → connect.availability
-→ connect.review → ready
-                 ↘ community.complete
-                 ↘ later.complete
-```
-
-Manual entry, unavailable search, no result, and `None of these` all route to `profile.publicLinks`, then the same editable profile review. The former standalone `Before we look` screen no longer exists. Point-of-action transparency and the manual choice live on the single profile lookup screen.
-
-## Candidate and public-link boundaries
-
-- Search uses only the verified member’s name, broad location, company or project, and role.
-- Candidate results are unconfirmed until the member explicitly selects one. The interface initially renders no more than three and never preselects a candidate.
-- A selected non-LinkedIn candidate routes to four optional member-provided link fields before profile review: LinkedIn, personal or company website, GitHub, and other social media. All four may remain blank.
-- When the selected candidate is a LinkedIn identifier, the prototype retains that identifier as `found_on_source`, `identifier_only`, and `not_fetched`; it hides the next-step LinkedIn input while retaining the other three optional member-provided fields. The provider-found identifier is reviewable and removable, but not editable as a member-provided value.
-- Member-provided values stay in React memory and are editable or removable during profile review.
-- The public-link screen performs local URL normalization and validation only. It does not retrieve, summarize, enrich, retain, or submit a link to an external service.
-- LinkedIn is always `identifier_only` with `retrievalStatus: not_fetched`. Corgi never fetches a LinkedIn page and never attributes role, company, location, image, or other facts to LinkedIn. Member-entered LinkedIn remains `member_provided`, while the selected-candidate exception is stored as `found_on_source`.
-- The LinkedIn review treatment remains the same neutral `LinkedIn profile · Link only` for provider-found and member-provided identifiers. Provenance is retained in data, not exposed as a visual provider distinction.
-- Every named-platform field accepts only that platform’s profile domain. A recognized named-platform URL pasted into another named or generic field receives a field-level error directing the member to the matching field; the prototype never redirects or silently reclassifies it. Personal/company website and other social remain generic for URLs that do not belong to a named platform.
-- Non-LinkedIn links remain `member_provided`; generic values display `Added by you`. No new production enrichment contract is implied.
-- Imported non-LinkedIn fields remain editable and source-labelled until `Confirm profile`.
-
-## Permission and terminal boundaries
-
-Suggested discussion topics may begin selected for review. Conversation categories, availability, visibility, expiry, and notifications do not. Sales, recruiting or hiring, and fundraising begin off and require explicit selection.
-
-`Start introductions` ends at a truthful ready screen that says the prototype has not searched for, ranked, or shown anyone. Community-interest and maybe-later branches state that nothing was submitted or saved. No branch grants community access, visibility, contact permission, or a commercial outcome.
-
-## Run and validate
-
-See the workspace [README](../../prototypes/community-onboarding-clickthroughs/README.md). The canonical local URL is `http://localhost:4313`; automated browser tests use isolated port `4413` so they do not reuse a separately managed preview.
-
-Required checks are:
+The prototype uses this simulated verification and activation sequence:
 
 ```text
-npm run lint
-npm test
-npm run build
-npm run test:e2e
+Set up intro → email → OTP 424242 → first name → last name → broad location
+→ company → role or title → optional public URL
+→ disclosed Exa People Search → identity candidate confirmation → editable profile confirmation
+→ connect now, community interest, or maybe later
+→ discussion topics → useful conversation and contribution
+→ explicit permissions and expiration → session review
+→ Ready for recommendations
 ```
 
-The ordinary `test:e2e` command explicitly excludes `@live`. The separate `npm run test:live` command selects only `@live` and is the sole opt-in path for the recovered provider smoke, so an exported provider key cannot activate live calls during normal tests.
+All imported fields identify their source and remain unconfirmed until the member reviews them.
+Suggested topics do not grant
+availability, visibility, fundraising, recruiting, sales, or notification permission.
 
-The local OTP fixture is documented for evaluators in the workspace README and is not rendered in public UI copy.
+The community-interest and maybe-later branches say explicitly that nothing was saved. This is
+intentional because these prototypes have no database or private-community handoff.
 
-### August 16, 2026 implementation review
+## Run the prototype
 
-The implementation was reviewed live with `chrome-devtools-axi` on isolated port `4413`. Accessibility snapshots confirmed the landing and onboarding landmark, heading, form, label, and progress semantics. Lighthouse scored 100 for accessibility, best practices, SEO, and agentic browsing on both `/` and `/start`. Automated browser checks covered 320, 390, 480, 768, 1024, and 1440 CSS pixels, 200% zoom, reduced motion, forced colors, keyboard submission, focus styling, and horizontal overflow.
+The npm workspace lives at the repo root; the app is
+[`corgi_cafe_app/`](../../README.md).
 
-The browser tool reported successful screenshot exports but did not materialize the files in the worktree. This was treated as an artifact-export defect, not a product result. No alternate browser client was used; the live DOM, accessibility-tree, Lighthouse, computed-style, and responsive evidence above formed the visual review record.
+| Command | Local URL | Live keys |
+|---|---|---|
+| `npm run dev` | `http://localhost:4313` | `EXA_API_KEY` |
 
-## Production gate
+Missing keys produce an on-brand manual fallback. `SESSION_SIGNING_SECRET` signs the 30-minute,
+HTTP-only demo OTP cookie. A local-only default is available outside production.
 
-The recovered search adapter and any future public-link processing remain non-production. Privacy, legal, procurement, provider selection, retention, deletion, correction, and operational ownership require separate approval. LinkedIn page retrieval remains outside that decision.
+## Provider and trust boundaries
+
+- Provider calls occur only after a visible disclosure and an explicit member action.
+- Exa performs one People Search and shows up to ten structured identity candidates.
+- Exa may return professional metadata aggregated from LinkedIn. LinkedIn URLs remain unverified
+  identifiers and Corgi never fetches their contents.
+- Provider images are supporting context only and are never presented as verified portraits.
+- Corgi consumes only Exa's structured person metadata and does not fetch candidate profile pages.
+- Names, emails, locations, URLs, free text, source contents, and profile drafts are not logged.
+- Drafts stay in React memory. Refreshing resets the walkthrough.
+- Prototype events contain only the variation, step, duration or outcome category, never input
+  values.
+
+## Evaluation questions
+
+Use the prototype to evaluate:
+
+- Does structured candidate selection establish identity without making the member feel investigated?
+- How often does the member correct or remove imported facts?
+- Do imported role, company, location, and public-profile details feel helpful or presumptuous?
+- Does structured People Search improve the confirmed profile enough to justify provider cost and latency?
+- Is the fallback easy to find and complete when People Search is not useful?
+
+Do not approve Exa for production from visual preference alone. Evaluate completion time, candidate
+rejection, field correction, topic correction, privacy, cost, and terminal completion.
+
+## Validation completed
+
+- TypeScript linting for the Exa app and shared package.
+- Production build for the Exa Next.js application.
+- Twenty-three unit and mocked-provider tests for schemas, app-scoped signed state, call budgets,
+  structured-person filtering, timeout behavior, malformed output, rate-limit retry, and missing-key
+  fallbacks.
+- Twenty-seven browser tests for connect-now, community-interest, maybe-later, incorrect-OTP, and
+  identity-confirmation paths at 320, 768, and 1440 pixel widths.
+- Browser checks for keyboard operation, reduced motion, zoom, truthful terminal states, commercial
+  permissions defaulting off, and the absence of recommendation UI.
+- Opt-in live smoke testing remains an engineering acceptance gate for the structured People Search
+  response and candidate-confirmation flow.
+- Browser-bundle checks confirming that provider key names and key material are absent.
+- Dependency audit with no known vulnerabilities at the time of validation.
+
+Prototype validation does not approve Exa for production or satisfy the privacy, legal, deletion,
+or real-member test gates.
+
+## Human acceptance gate
+
+Before testing with anyone beyond the owner:
+
+1. Product accepts the structured identity-confirmation journey.
+2. Design accepts the disclosure, candidate selection, correction, permission, and fallback behavior.
+3. Engineering verifies live provider behavior with configured keys and confirms server logs and
+   browser bundles do not expose personal information or secrets.
+4. Privacy and legal reviewers accept provider use, disclosure, deletion posture, and platform
+   constraints.
+5. The owner approves the complete onboarding design. No production architecture or vendor
+   selection happens before that choice.

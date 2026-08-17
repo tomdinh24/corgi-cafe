@@ -1,91 +1,262 @@
-# Corgi Cafe introductions landing page
+# Corgi Post-Order Discovery Landing Page
 
-## Product, marketing, and design handoff
+## Marketing and Design Handoff
 
-- **Status:** Canonical landing experience
-- **Date:** August 16, 2026
+- **Status:** Implemented as a standalone prototype
+- **Audience:** Corgi Cafe Tech Ops, Product, Design, and Engineering
+- **Date:** August 15, 2026
+- **Owners:** Standing Marketing Lead and Design Lead
+- **Product review:** Standing Product Lead terminology incorporated
 - **Writing standard:** [Corgi Cafe Brand Writing Guide](../BRAND_WRITING.md)
-- **Implementation:** [`../../prototypes/community-onboarding-clickthroughs/apps/onboarding-exa/app/page.tsx`](../../prototypes/community-onboarding-clickthroughs/apps/onboarding-exa/app/page.tsx)
-- **Onboarding:** [`community-onboarding-exa-prototype.md`](./community-onboarding-exa-prototype.md)
+- **Prototype (archived):** [`docs/archive/community-activation-landing/index.html`](../archive/community-activation-landing/index.html)
 
-## Objective
+---
 
-Invite a visitor who is at Corgi and open to a useful conversation into the centralized onboarding flow. Within a few seconds, the page makes clear that someone they may want to talk to could already be in the Cafe, both people opt in, and an introduction is not guaranteed.
+## 1. Objective
 
-Corgi sounds like a friendly Cafe host. The page leads with the human outcome rather than profile search, matching, or a provider.
+Invite a post-order visitor who is physically at Corgi and open to meeting someone into the
+centralized Corgi onboarding flow.
 
-## Canonical hierarchy and copy
+The page should make three things clear within a few seconds:
 
-### Header
+1. Corgi can introduce people who are already in the Cafe.
+2. The visitor starts by saying what they want to talk about.
+3. An introduction happens only when both people want that kind of conversation.
 
-- Official Corgi logo, followed by the HTML descriptor **Cafe introductions**
-- In-Cafe context: **At Corgi · 9 Claude Lane**
-- Action: **Start an intro**
+The page does not promise that someone will be available.
 
-The logo is the unmodified project-owned asset registered in [`../ASSET_REGISTER.md`](../ASSET_REGISTER.md).
+## 2. Audience and positioning
 
-### Hero
+The primary audience is a founder, startup operator, investor, or opportunity-seeking builder who
+is currently at Corgi and open to meeting someone during the visit.
 
-- Eyebrow: **Here today**
-- H1: **Want to meet someone at Corgi?**
-- Supporting copy: **Tell us what you’re working on and what you’d like to talk about. If someone here wants that conversation too, we’ll introduce you.**
-- Action: **Start an intro**
+Corgi should sound like a friendly Cafe host, not a networking platform. It asks what someone wants
+to talk about, checks whether another person wants the same conversation, and makes the introduction
+for both people.
 
-The retained original CSS Cafe scene shows two people, a table, conversation notes, and a 42-minute introduction window. It is decorative and adds no duplicate accessibility-tree content.
+The centralized profile and possible future private-community participation remain secondary. The
+landing page is about having a conversation during the current Cafe visit.
 
-### How it works
+## 3. Writing direction
 
-- Eyebrow: **How it works**
-- H2: **Skip the cold approach.**
+The copy follows the [brand writing guide](../BRAND_WRITING.md):
 
-1. **Say what’s on your mind.** Share what you’re building or figuring out today.
-2. **Choose what you’re up for.** Tell us what you can help with and what to skip.
-3. **Get introduced together.** If the conversation fits, Corgi introduces you both.
+- lead with the human invitation rather than the matching system;
+- use familiar words, contractions, and short sentences;
+- make playfulness come from real social moments;
+- explain the mechanism in three human steps;
+- move privacy, uncertainty, and permission into compact ground rules; and
+- keep the CTA clean, with no disclaimer or helper text beneath it.
 
-### Example introduction
+Internal product terms such as `eligible`, `mutual fit`, `current intent`, `visibility`, and
+`session expiration` remain in the product specification. They are translated for visitors.
 
-- Eyebrow: **Example intro**
-- H2: **A real reason to say hello.**
-- Status: **Open now · 42 min left**
-- Person: **Maya · GTM operator**
-- Reason: **You’re working through early sales. Maya has helped two developer-tool teams move beyond founder-led sales and is open to comparing notes.**
-- Prompt: **What changed when founder-led sales stopped scaling?**
-- Footer: **Example only. No member data is shown.**
+## 4. Primary copy deck
 
-The example is a static `<article>`. It does not expose fake, disabled match controls.
+### 4.1 Hero
 
-### Ground rules
+**Eyebrow:** Here today
 
-- Eyebrow: **Your call**
-- H2: **No awkward surprises.**
-- **Both people opt in.** Corgi only introduces people who are open to that conversation.
-- **No surprise pitches.** Sales, recruiting, and fundraising stay off unless both people choose them.
-- **Private by default.** Your profile isn’t a public directory listing.
-- **No forced match.** If no one fits, we’ll say so.
-- **Easy out.** Skip, pause, block, or report anytime.
+**Headline:** Want to meet someone at Corgi?
 
-### Final invitation
+**Supporting copy:** Tell Corgi what you're working on and what you'd like to talk about. If someone
+here wants that conversation too, we'll introduce you.
 
-- H2: **Open to an intro?**
-- Action: **Start an intro**
+**CTA:** Start an intro
 
-Every CTA is a normal link to `/start`. The former five-step preview modal has been retired.
+There is no helper text beneath the CTA.
 
-## Trust and scope
+### 4.2 How it works
 
-The landing page may explain mutual permission, member control, a private-by-default profile, and an honest no-match state. It must not promise an introduction, private-community acceptance, a public directory, investors, jobs, customers, funding, safety, or another commercial outcome.
+**Headline:** Start with what you actually want to talk about.
 
-No provider, model, AI claim, version, profile-search detail, or inferred professional fact appears in public metadata or landing copy.
+**Supporting copy:** No bio-writing contest. Give Corgi just enough to make a good introduction.
 
-## Responsive and accessible behavior
+1. **Say what's on your mind.** Tell us what you're building, figuring out, or curious about today.
+2. **Say what you're up for.** Share what you can help with and any conversations you would rather
+   skip.
+3. **Get introduced together.** If you both want the conversation, Corgi introduces you at the same
+   time.
 
-- Desktop uses a 12-column hero, three open mechanism columns, a 5/7 example split, and a two-column ground-rule band.
-- Below 768px, sections reflow to one column and the adjacent logo descriptor hides before the 83×24 logo is reduced.
-- At 320px, primary CTAs fit the viewport and the hero action becomes full width.
-- Controls use 44px or larger targets, tactile orange states, a dark-orange focus edge, and a light-orange halo.
-- Reduced-motion and forced-colors preferences are supported.
-- Automated review covers 320, 390, 480, 768, 1024, and 1440 CSS pixels plus 200% zoom without page-level horizontal overflow.
+### 4.3 Example introduction
 
-## Analytics boundary
+**Eyebrow:** Skip the cold approach
 
-The current prototype sends no analytics network request. Any future instrumentation may record placement and categorical outcomes only. It must never include emails, names, locations, URLs, free text, candidate contents, or profile contents.
+**Headline:** A real reason to say hello.
+
+**Setup:** You are building a developer tool and want to talk through early sales. Maya is at Corgi
+too. She has been through the same shift and is open to comparing notes now.
+
+**Example card:**
+
+- Status: You're both up for this
+- Person: Maya, an early GTM operator
+- Reason: Maya has helped two developer-tool teams move past founder-led sales. You can compare what
+  changed, what did not, and what you're seeing with early customers.
+- Starting point: What changed when founder-led sales stopped scaling?
+- Controls: Meet now; Skip
+
+The example is fictional and contains no member data.
+
+### 4.4 Ground rules
+
+**Headline:** No awkward surprises.
+
+**Supporting copy:** Corgi only makes an intro when both people want that kind of conversation. You
+can always skip without turning it into a thing.
+
+- **No cold approaches.** You only meet when you are both open to that kind of conversation.
+- **No surprise pitches.** Sales, recruiting, fundraising, and hiring talk only happen when both
+  people say yes.
+- **No forced introduction.** If no one is available, stay open while you're here or try another
+  visit.
+- **No public directory.** A profile does not create followers, messages, or permission to contact
+  someone.
+- **Skip without the speech.** Corgi does not say who skipped or why. A person can also pause, block,
+  or report.
+
+### 4.5 Final invitation
+
+**Eyebrow:** Still here?
+
+**Headline:** Open to meeting someone?
+
+**Supporting copy:** Tell us what you'd like to talk about. We'll make an intro only when you both
+want it.
+
+**CTA:** Start an intro
+
+## 5. Alternate hero routes
+
+These routes are retained for review or later testing. The direct route remains the prototype
+default.
+
+### Social-friction route
+
+**Headline:** Skip the awkward hover near someone's laptop.
+
+**Supporting copy:** Tell Corgi what you want to talk about and what is off limits. We'll only make
+an introduction when both people want the conversation.
+
+**CTA:** Start an intro
+
+### Builder-recognition route
+
+**Headline:** Someone at Corgi might get what you're building.
+
+**Supporting copy:** Tell Corgi what you're working on and what you want to talk through. If someone
+here wants that conversation too, we'll introduce you.
+
+**CTA:** Start an intro
+
+### Useful-conversation route
+
+**Headline:** Open to a good conversation while you're here?
+
+**Supporting copy:** Say what you're working on and what would be helpful to talk through. If someone
+nearby is open to the same conversation, Corgi can make the intro.
+
+**CTA:** Start an intro
+
+Do not test an alternate until a pilot has enough people available to make landing-page conversion
+results interpretable.
+
+## 6. Proof and trust boundaries
+
+The page may say that Corgi:
+
+- asks what someone wants to discuss and what they can help with;
+- asks which conversations are welcome or off limits;
+- introduces people only when both have opted into compatible, time-bounded availability;
+- explains why they may want to talk and offers a starting point;
+- supports skip, pause, block, and report controls; and
+- gives an honest waiting state when no credible introduction exists.
+
+The page must not promise:
+
+- that an introduction or meeting will exist;
+- access to investors, jobs, customers, referrals, or funding;
+- private-community acceptance;
+- a public directory or offsite contact; or
+- a commercial outcome from an introduction.
+
+## 7. Prototype handoff
+
+The primary CTA opens a modal showing the proposed transition into centralized Corgi setup. It does
+not implement account creation, profile enrichment, onboarding, matching, or private-community
+membership.
+
+The modal groups the canonical onboarding sequence into five visitor-facing steps:
+
+1. Verify an email, then add name and broad location.
+2. Choose the correct sourced profile or provide LinkedIn, then correct anything wrong.
+3. Choose to meet someone now, record private-community interest, or return later.
+4. Review suggested topics and state what to discuss or help with today.
+5. Set availability and limits, then receive an introduction or an honest no-one-available state.
+
+The modal states that nothing is saved, profile search is not connected, and the proposed search is
+not approved for production. Escape and the explicit close action close the modal and return focus
+to the CTA that opened it.
+
+## 8. Prototype analytics contract
+
+The prototype records events locally in `window.corgiPrototypeEvents` and dispatches a
+`corgi:analytics` browser event. It sends no network requests and includes no personal information.
+
+| Event | Trigger |
+|---|---|
+| `community_landing_viewed` | Page initializes |
+| `community_landing_section_viewed` | A major page section becomes visible for the first time |
+| `community_landing_cta_clicked` | A header, hero, or final CTA is selected |
+| `signup_started` | The mocked onboarding handoff opens |
+| `onboarding_handoff_closed` | The modal closes |
+
+Production instrumentation should add entry point, anonymous experiment assignment, viewport class,
+first-time-product-user status after signup, and downstream onboarding and visit outcomes. It must
+not attach inferred professional context to pre-signup marketing analytics.
+
+## 9. Experiment
+
+### Hypothesis
+
+A direct invitation to meet someone already at Corgi will increase qualified onboarding starts
+without creating the belief that an introduction, pitch opportunity, or commercial outcome is
+guaranteed.
+
+### Primary measure
+
+Percentage of landing-page visitors who start centralized Corgi onboarding.
+
+### Downstream measure
+
+Percentage of first-time product users who complete onboarding and open themselves to an
+introduction during the current visit.
+
+### Guardrails
+
+- Visitors believe an introduction, investment, job, customer, or community acceptance is
+  guaranteed.
+- Visitors are surprised by profile resolution or visibility choices.
+- CTA engagement is high but profile confirmation drops sharply.
+- Commercial-solicitation or interaction-boundary complaints increase.
+
+Do not optimize landing-page conversion independently of useful-conversation and safety outcomes.
+
+## 10. Implementation boundary
+
+This artifact is a visual and interaction prototype. It intentionally contains:
+
+- no production authentication;
+- no profile lookup or third-party API;
+- no storage or submission of personal information;
+- no ordering or loyalty integration;
+- no real analytics endpoint; and
+- no live matching.
+
+Production implementation follows human acceptance of the
+[onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md) and the complete onboarding
+experience design.
+
+Crustdata is the selected shadow-test candidate only. This handoff does not approve it for
+production. Recording private-community interest does not grant membership, discoverability, or
+contact permission.
