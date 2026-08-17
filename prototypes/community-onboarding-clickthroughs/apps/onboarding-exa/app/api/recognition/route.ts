@@ -43,7 +43,10 @@ export async function POST(request: Request) {
   const extension = contentType.split("/")[1] ?? "jpg";
   const path = `${auth.user.id}/${recommendationId}/${mediaKind}-${Date.now()}.${extension}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const { error: uploadError } = await supabase!.storage.from("recognition-media").upload(path, bytes, { contentType, upsert: true });
+  // No upsert: each upload uses a unique (Date.now) path, and Storage evaluates an upsert against
+  // an UPDATE policy the recognition-media bucket doesn't have — which rejected every upload,
+  // including first ones. A plain insert only needs the existing owner INSERT policy.
+  const { error: uploadError } = await supabase!.storage.from("recognition-media").upload(path, bytes, { contentType });
   if (uploadError) return NextResponse.json({ message: "Your photo could not be uploaded." }, { status: 502 });
 
   const { error: rowError } = await supabase!.from("recognition_media").upsert({
