@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { SiteHeader } from "./SiteHeader";
 
 function Logo({ linked = false }: { linked?: boolean }) {
@@ -11,16 +12,22 @@ function Logo({ linked = false }: { linked?: boolean }) {
   ) : <div className="landing-brand">{image}</div>;
 }
 
-function StartLink({ className = "" }: { className?: string }) {
-  return <Link className={`button primary ${className}`.trim()} href="/sign-up">Start an intro</Link>;
+function StartLink({ href, className = "" }: { href: string; className?: string }) {
+  return <Link className={`button primary ${className}`.trim()} href={href}>Start an intro</Link>;
 }
 
-export function LandingPage() {
+export async function LandingPage() {
+  // Cheap presence check on the Supabase SSR session cookie: a signed-in visitor's "Start an intro"
+  // links straight to /home so they skip the /sign-up detour (and its resume spinner). A stale
+  // cookie is harmless — /home resumes, finds no session, and falls back to sign-up gracefully.
+  const cookieStore = await cookies();
+  const signedIn = cookieStore.getAll().some((c) => /^sb-.+-auth-token(\.\d+)?$/.test(c.name) && Boolean(c.value));
+  const startHref = signedIn ? "/home" : "/sign-up";
   return (
     <div className="landing-page landing-version-a landing-social-refresh">
       <SiteHeader
         center={<div className="landing-nav-links"><a href="#how-it-works">How it works</a><a href="#community-code">Community code</a></div>}
-        right={<><span className="cafe-chip">At Corgi · 9 Claude Lane</span><StartLink className="compact" /></>}
+        right={<><span className="cafe-chip">At Corgi · 9 Claude Lane</span><StartLink href={startHref} className="compact" /></>}
       />
 
       <main id="landing-main">
@@ -30,7 +37,7 @@ export function LandingPage() {
               <p className="eyebrow">Here today</p>
               <h1 id="landing-title">Want to meet someone at Corgi?</h1>
               <p className="landing-lede">Corgi brings together people at the Cafe who are open to the same kind of conversation.</p>
-              <StartLink />
+              <StartLink href={startHref} />
             </div>
 
             <figure className="community-scene dog-only-scene" aria-label="Three Corgi community members">
@@ -126,7 +133,7 @@ export function LandingPage() {
           <div className="landing-shell social-final-card">
             <div className="final-dogs" aria-hidden="true"><img src="/community/corgi-laptop.png" alt="" /><img src="/community/corgi-founder.png" alt="" /><img src="/community/corgi-suit.png" alt="" /></div>
             <div className="final-copy"><p className="eyebrow">At Corgi today</p><h2 id="final-title">See who’s open to talk.</h2><p>A good conversation could be one table away.</p></div>
-            <StartLink />
+            <StartLink href={startHref} />
           </div>
         </section>
       </main>
