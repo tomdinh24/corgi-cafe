@@ -26,8 +26,8 @@ port = 56327
 
 [auth]
 enabled = true
-site_url = "http://localhost:4315"
-additional_redirect_urls = ["http://localhost:4315", "http://localhost:4315/auth/callback", "http://127.0.0.1:4315/auth/callback", "http://localhost:4313", "http://localhost:4313/auth/callback"]
+site_url = "https://corgi-cafe-eight.vercel.app"
+additional_redirect_urls = ["https://corgi-cafe-eight.vercel.app/auth/callback", "https://corgi-cafe-git-corgi-communit-51dc63-tom-lams-projects-83341c9d.vercel.app/auth/callback", "https://*-tom-lams-projects-83341c9d.vercel.app/**", "http://localhost:4315", "http://localhost:4315/auth/callback", "http://127.0.0.1:4315/auth/callback", "http://localhost:4313", "http://localhost:4313/auth/callback"]
 jwt_expiry = 3600
 enable_signup = true
 
