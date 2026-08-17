@@ -509,7 +509,10 @@ export function ExaOnboarding() {
       const path = authIntent === "signup" ? "/api/auth/signup" : "/api/auth/signin";
       const result = await jsonPost(path, { email, password });
       if (result.mode === "confirm_required") { setNotice(result.message); return; }
-      if (authIntent === "signin") { window.location.assign("/"); return; }
+      // Sign-in: full navigation to /home (an app route) rather than "/" (the marketing landing page)
+      // so the boot gate runs on a fresh mount and resumes the member into home / their onboarding
+      // step / an active match. Sending them to "/" dropped them on the landing page instead.
+      if (authIntent === "signin") { window.location.assign("/home"); return; }
       go(2);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "That did not work. Try again."); }
     finally { setLoading(false); }
