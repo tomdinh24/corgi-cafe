@@ -91,6 +91,10 @@
 }
 
 .landing-header-actions {
+  /* Grid items default to min-width:auto — without this, unshrinkable content (the avatar +
+     cafe pill) forces the "auto" grid column past the container's edge, which pushes the whole
+     page's scrollWidth wider than the viewport and cuts off every full-width element below it. */
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
