@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { computeResume, MATCH_WINDOW_MS, type BootData } from "./resume";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { bootCache, computeResume, invalidateBoot, loadBoot, MATCH_WINDOW_MS, type BootData } from "./resume";
 
 const config = (authMode: string, supabase = "configured") => ({ supabase, authMode } as BootData["config"]);
 const boot = (authMode: string, status: BootData["status"]): BootData => ({ config: config(authMode), status });
@@ -68,6 +68,40 @@ describe("computeResume — destination step", () => {
     const r = computeResume(boot("password", { authenticated: true, profile: confirmedProfile, activeSession: { id: "s4", status: "meeting" }, activeRecommendationId: "rec11", introducedAt }));
     expect(r.step).toBe(11);
     expect(r.matchExpiresAt).toBe(0); // meeting stage owes no countdown
+  });
+});
+
+describe("boot cache lifecycle", () => {
+  afterEach(() => { invalidateBoot(); vi.unstubAllGlobals(); });
+
+  it("fetches once, reuses the cache, then re-fetches after invalidateBoot (the sign-up staleness fix)", async () => {
+    // First page load: user is not signed in.
+    let status = { authenticated: false };
+    const fetchMock = vi.fn(async (url: string) => ({
+      json: async () => (url.includes("/api/config") ? { supabase: "configured", authMode: "password" } : status),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await loadBoot();
+    expect(first.status.authenticated).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // config + status, once each
+
+    // A remount within the same page-load reuses the cache — no extra round-trips (kills the flicker).
+    await loadBoot();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bootCache?.status.authenticated).toBe(false);
+
+    // User signs up -> go() calls invalidateBoot(); the server now reports an authenticated session.
+    status = { authenticated: true, profile: null } as typeof status;
+    invalidateBoot();
+    expect(bootCache).toBeNull();
+
+    // The next remount re-fetches fresh status instead of resuming the stale "signed-out" screen,
+    // so a just-signed-up member advances to onboarding rather than bouncing back to sign-up.
+    const second = await loadBoot();
+    expect(second.status.authenticated).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(computeResume(second).step).toBe(2);
   });
 });
 

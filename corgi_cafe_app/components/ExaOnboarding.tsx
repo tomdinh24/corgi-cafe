@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { normalizePublicUrl, namedPlatformForUrl, namedPlatformLabel, type PersonCandidate } from "@corgi/onboarding-shared";
 import { SiteHeader } from "./SiteHeader";
 import { CORGI_CAFES, DEFAULT_CAFE_CODE, nearestCafe } from "@/lib/cafes";
-import { bootCache, computeResume, loadBoot, MATCH_WINDOW_MS, type AuthMode, type LinkKind, type Resume, type SetupMode } from "@/lib/resume";
+import { bootCache, computeResume, invalidateBoot, loadBoot, MATCH_WINDOW_MS, type AuthMode, type LinkKind, type Resume, type SetupMode } from "@/lib/resume";
 
 const LOCATION_CHECK_KEY = "corgi.locationCheck";
 const MODE_KEY = "corgi.mode";
@@ -412,7 +412,12 @@ export function ExaOnboarding() {
   const cleanLinks = useMemo(() => (Object.entries(links) as [LinkKind, string][]).flatMap(([kind, value]) => { const normalized = normalizePublicUrl(value); return normalized ? [{ kind, url: normalized }] : []; }), [links]);
   const linkErrors = useMemo(() => { const errors: Partial<Record<LinkKind, string>> = {}; (Object.entries(links) as [LinkKind, string][]).forEach(([kind, value]) => { if (!value.trim()) return; const normalized = normalizePublicUrl(value); if (!normalized) { errors[kind] = "Enter a full public link, like https://example.com."; return; } const platform = namedPlatformForUrl(normalized); const expected = kind === "linkedin_identifier" ? "linkedin" : kind === "github" ? "github" : null; if (platform && platform !== expected) { const label = namedPlatformLabel(platform); errors[kind] = `Add ${label} profile links in the ${label} field.`; } }); return errors; }, [links]);
   const hasLinkErrors = Object.keys(linkErrors).length > 0;
-  const go = (next: number) => { setError(""); setNotice(""); setStep(next); };
+  // go() is the user-driven step advance (never the passive resume, which uses setStep directly).
+  // The moment the visitor acts — signing up, confirming their profile, starting a match — the cached
+  // boot payload from page load is stale (their auth/profile state has changed on the server). Drop
+  // it so the next route-change remount re-fetches fresh status instead of resuming into the old
+  // screen (which otherwise bounced a just-signed-up member from the basic-info page back to sign-up).
+  const go = (next: number) => { setError(""); setNotice(""); invalidateBoot(); setStep(next); };
   const back = () => go(Math.max(0, step - 1));
   const save = async (body: unknown) => { const result = await jsonPost("/api/persist", body); if (result.status === "preview_only") setNotice("Supabase is not connected. This preview continues without saving."); return result; };
   const record = (eventName: string, context: Record<string, string | number | boolean | null> = {}) => {

@@ -60,8 +60,10 @@ export function loadBoot(): Promise<BootData> {
   return bootPromise;
 }
 
-// Test-only: reset the module cache between cases.
-export function resetBootCache() {
+// Drop the cached boot payload so the next loadBoot() re-fetches fresh config + status. Called by the
+// client whenever it mutates auth/profile state in-SPA (sign-up, profile confirm, …) so a later
+// route-change remount never resumes from stale data. Also used to reset the cache between tests.
+export function invalidateBoot() {
   bootCache = null;
   bootPromise = null;
 }
