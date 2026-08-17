@@ -109,4 +109,46 @@ begin
   raise notice 'PASS no_match: null as expected when no eligible counterpart remains';
 end $$;
 
+-- ---- Re-match: A and Rowan already met once; a NEW visit must be allowed to reconnect them ----
+-- This guards the 202608180001 change (removal of the permanent no-repeat gate). Close every prior
+-- session (as the app does at the start of a new visit) so the partial one-active-session index and
+-- the "not in an active recommendation" filter are clear, leaving Rowan as A's only candidate. A
+-- non-null result therefore means the previously-paired Rowan was reconnected.
+update public.visit_intro_sessions
+  set status = 'completed'
+  where status in ('searching', 'introduced', 'waiting', 'meeting', 'draft');
+
+insert into public.visit_intro_sessions (
+  id, member_id, order_confirmed_today, at_cafe, presence_checked_at,
+  conversation_mode, topics, useful_context, offer_context, boundaries, status
+) values
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111',
+   true, true, now(), 'specific', array['Building community'],
+   'Meeting builders thinking about community', 'Can share how to host gatherings',
+   '{"fundraising":false,"recruiting":false,"sales":false}'::jsonb, 'searching'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222',
+   true, true, now(), 'specific', array['Building community'],
+   'Want to learn how to host low-pressure meetups', 'Can give product feedback',
+   '{"fundraising":false,"recruiting":false,"sales":false}'::jsonb, 'searching');
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', '22222222-2222-2222-2222-222222222222', 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  rec2 uuid;
+  counterpart_first text;
+begin
+  rec2 := public.request_introduction('dddddddd-dddd-dddd-dddd-dddddddddddd');
+  if rec2 is null then
+    raise exception 'FAIL: expected a re-match for previously-paired members, got null (no-repeat gate still active?)';
+  end if;
+  select first_name into counterpart_first
+  from public.get_introduction_counterpart(rec2);
+  if counterpart_first is distinct from 'Rowan' then
+    raise exception 'FAIL: expected re-match counterpart Rowan, got %', counterpart_first;
+  end if;
+  raise notice 'PASS re-match: previously-paired members were reconnected (rec=% counterpart=%)', rec2, counterpart_first;
+end $$;
+
 rollback;
