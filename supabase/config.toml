@@ -37,8 +37,14 @@ double_confirm_changes = true
 enable_confirmations = false
 otp_expiry = 3600
 
-# NOTE: sign-in uses magic links (the free-tier default email). Custom email templates and
-# 6-digit codes require a custom SMTP provider — add [auth.email.smtp] and a template here then.
+# Corgi-branded 6-digit sign-in email is ready at ./supabase/templates/magic_link.html. Applying it
+# (and the {{ .Token }}-in-subject that splits Gmail threads) is BLOCKED on the free tier's default
+# email provider — Supabase returns 400 "Email template modification is not available for free tier
+# projects using the default email provider." Unblock by adding a custom SMTP provider (e.g. Resend)
+# in the dashboard, or upgrading to Pro, then uncomment the block below and `supabase config push`.
+# [auth.email.template.magic_link]
+# subject = "{{ .Token }} is your Corgi Cafe sign-in code"
+# content_path = "./supabase/templates/magic_link.html"
 
 [storage]
 enabled = true
