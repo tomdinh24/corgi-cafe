@@ -13,11 +13,11 @@ function Logo({ linked = false }: { linked?: boolean }) {
 }
 
 function StartLink({ href, className = "" }: { href: string; className?: string }) {
-  return <Link className={`button primary ${className}`.trim()} href={href}>Start an intro</Link>;
+  return <Link className={`button primary ${className}`.trim()} href={href}>Start a chat</Link>;
 }
 
 export async function LandingPage() {
-  // Cheap presence check on the Supabase SSR session cookie: a signed-in visitor's "Start an intro"
+  // Cheap presence check on the Supabase SSR session cookie: a signed-in visitor's "Start a chat"
   // links straight to /home so they skip the /sign-up detour (and its resume spinner). A stale
   // cookie is harmless — /home resumes, finds no session, and falls back to sign-up gracefully.
   const cookieStore = await cookies();
