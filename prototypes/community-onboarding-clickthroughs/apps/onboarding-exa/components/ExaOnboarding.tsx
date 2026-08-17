@@ -101,8 +101,10 @@ export function ExaOnboarding() {
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  // Account settings overlay (edit profile / links / delete account), opened from the header menu.
-  const [accountView, setAccountView] = useState(false);
+  // Account settings is a real pushed route (/account) rather than a hidden flag, so the browser
+  // Back button and the "Done" button both land back on /home instead of exiting to the landing
+  // page. Deriving the view from the path keeps the URL the single source of truth.
+  const accountView = pathname === "/account";
   const [accountNotice, setAccountNotice] = useState("");
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -112,14 +114,19 @@ export function ExaOnboarding() {
   const [resuming, setResuming] = useState(true);
 
   useEffect(() => {
-    fetch("/api/config").then((r) => r.json()).then(async (data) => {
+    // Fire both boot calls at once instead of chaining status behind config. They're independent
+    // (status returns {authenticated:false} when Supabase isn't configured), so running them in
+    // parallel halves the resume wait a signed-in visitor sees before landing on /home.
+    const configPromise = fetch("/api/config").then((r) => r.json());
+    const statusPromise = fetch("/api/auth/status").then((r) => r.json()).catch(() => ({ authenticated: false }));
+    configPromise.then(async (data) => {
       setSetup(data.supabase);
       setAuthMode(data.authMode ?? "preview");
       if (data.authMode === "magiclink" || data.authMode === "dev") {
         // Already signed in (magic-link return, or a live session from earlier tonight)? Resume
         // where they left off instead of re-running onboarding from scratch.
         try {
-          const status = await fetch("/api/auth/status").then((r) => r.json());
+          const status = await statusPromise;
           if (!status.authenticated) return;
           setEmail(status.email ?? "");
           const profile = status.profile;
@@ -166,6 +173,9 @@ export function ExaOnboarding() {
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step, terminal]);
   useEffect(() => {
     if (resuming) return;
+    // Account settings is a pushed history entry that owns its own URL — never replace it away,
+    // or Back/Done would be undone the moment this effect re-runs.
+    if (pathname === "/account") return;
     // Keep the address bar in sync with the section of the flow: auth (sign-up/sign-in),
     // onboarding (profile creation), and home (everything after the profile is claimed).
     const section = terminal ? "/home" : step <= 1 ? (authIntent === "signin" ? "/sign-in" : "/sign-up") : step <= 6 ? "/onboarding" : "/home";
@@ -222,7 +232,7 @@ export function ExaOnboarding() {
     try { await fetch("/api/auth/logout", { method: "POST" }); } finally { window.location.href = redirectTo; }
   };
   // Defined here (before Shell/shellState reference it) so the header menu can open account settings.
-  const openAccount = () => { setAccountMenuOpen(false); setError(""); setAccountNotice(""); setDeleteArmed(false); setAccountView(true); };
+  const openAccount = () => { setAccountMenuOpen(false); setError(""); setAccountNotice(""); setDeleteArmed(false); router.push("/account"); };
   // Shell must keep a stable identity across renders — defining a component function inline in
   // the render body (as this used to) makes React remount its whole subtree on every keystroke
   // anywhere in the app (any state change here creates a "new" Shell type), which drops focus out
@@ -308,7 +318,8 @@ export function ExaOnboarding() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Your profile could not be saved."); }
     finally { setLoading(false); }
   };
-  const closeAccount = () => { setAccountView(false); setDeleteArmed(false); setAccountNotice(""); };
+  // Mirror the browser Back button: pop the pushed /account entry to return to /home.
+  const closeAccount = () => { setDeleteArmed(false); setAccountNotice(""); router.back(); };
   // Save profile edits without leaving the settings screen (upsert, so it updates the existing row).
   const saveAccount = async () => {
     setLoading(true); setError(""); setAccountNotice("");
@@ -399,7 +410,7 @@ export function ExaOnboarding() {
   if (step === 9) return <Shell step={9} wide><Header eyebrow="Today at Corgi" title="What type of conversation do you want?"/><div className="journey-stack"><button className={`mode-card ${conversationMode === "specific" ? "selected" : ""}`} onClick={() => setConversationMode("specific")}><strong>I have something in mind</strong><small>Choose a topic for today.</small></button><button className={`mode-card ${conversationMode === "open" ? "selected" : ""}`} onClick={() => setConversationMode("open")}><strong>Just looking to meet interesting people</strong><small>Corgi will still look for a thoughtful fit.</small></button></div><hr className="section-divider" />{conversationMode === "specific" && <section className="topic-panel"><h2>What’s on your mind?</h2><div className="topic-grid">{[...topicOptions, "Other"].map((topic) => <button key={topic} className={topics.includes(topic) ? "selected" : ""} aria-pressed={topics.includes(topic)} onClick={() => setTopics(topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic])}>{topic}</button>)}</div>{topics.includes("Other") && <TextBox label="Tell us what’s on your mind" value={otherTopic} onChange={(e) => setOtherTopic(e.target.value)} />}</section>}<div className="journey-grid intent-details"><TextBox label="What would you like help on?" value={useful} onChange={(e) => setUseful(e.target.value)} /><TextBox label="What can you help with?" value={offer} onChange={(e) => setOffer(e.target.value)} /></div>{error && <p className="journey-error">{error}</p>}<Actions><Primary disabled={loading || (conversationMode === "specific" && (topics.length === 0 || (topics.includes("Other") && !otherTopic.trim())))} onClick={startSession}>Continue</Primary></Actions></Shell>;
   if (step === 10) return <Shell step={10}><div className="loader" aria-label="Finding someone"><i/><i/><i/></div><div className="center"><Header eyebrow="One moment" title="Corgi is finding someone worth meeting.">We’ll only make an introduction when the conversation looks promising.</Header><aside className="community-note"><strong>A quick community note</strong><span>Keep it conversational. No direct fundraising asks or recruiting.</span></aside></div></Shell>;
   if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><div className="intro-person-text"><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div></div><div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={async () => { record("introduction_continue"); await saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
-  if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelf ? "✓" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearby ? "✓" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
+  if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelf ? "✓" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearby ? "✓" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
   if (step === 14) { const timerMinutes = String(Math.floor(meetingSecondsLeft / 60)).padStart(2, "0"); const timerSeconds = String(meetingSecondsLeft % 60).padStart(2, "0"); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer"><strong>{timerMinutes}:{timerSeconds}</strong><span>left</span></div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
   if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => <span key={index}><strong>{link.kind === "website" ? "Website" : link.kind === "github" ? "GitHub" : link.kind === "social" ? "Social" : "Link"}</strong>{link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;
   if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['very_unhelpful','😞','Not useful'],['unhelpful','🙁','Not really'],['neutral','😐','Okay'],['helpful','🙂','Useful'],['very_helpful','😄','Very useful']] as const).map(([value,emoji,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} aria-label={label} title={label} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value); }}><span aria-hidden="true">{emoji}</span></button>)}</div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { record("meet_another_selected"); setFeedback(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { record("intro_session_finished"); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
