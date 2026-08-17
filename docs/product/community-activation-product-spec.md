@@ -9,7 +9,7 @@
 **Depends on:** [Community activation problem brief](./community-activation-problem-brief.md)  
 **Product review:** Standing Product Lead approved for human product acceptance
 
-**Related work:** [Landing-page handoff](./post-order-discovery-landing-page-handoff.md) · [Onboarding enrichment proposal](./onboarding-enrichment-proposal.md)
+**Related work:** [Landing-page handoff](./post-order-discovery-landing-page-handoff.md) · [Onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md)
 
 ---
 
@@ -137,7 +137,7 @@ The proposed first enrichment experiment uses Crustdata to search by exact full 
 location, presents no more than three candidates, and calls base enrichment only after the member
 confirms a candidate. Crustdata is not yet approved for production. Provider failure, ambiguity, or
 member preference must lead to a short manual flow without blocking same-visit activation. See the
-[onboarding enrichment proposal](./onboarding-enrichment-proposal.md) for pricing, legal, privacy,
+[onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md) for pricing, legal, privacy,
 and go/no-go criteria.
 
 ### Explicit durable context

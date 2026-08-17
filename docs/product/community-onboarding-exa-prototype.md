@@ -38,8 +38,8 @@ intentional because these prototypes have no database or private-community hando
 
 ## Run the prototype
 
-The npm workspace lives at
-[`prototypes/community-onboarding-clickthroughs/`](../../prototypes/community-onboarding-clickthroughs/README.md).
+The npm workspace lives at the repo root; the app is
+[`apps/onboarding-exa/`](../../README.md).
 
 | Command | Local URL | Live keys |
 |---|---|---|

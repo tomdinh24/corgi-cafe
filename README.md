@@ -1,12 +1,20 @@
-# Corgi onboarding Exa prototype
+# Corgi Cafe — Community Activation
 
-This standalone app implements the approved Corgi onboarding and Cafe-introduction journeys. Exa
-People Search helps a member identify a possible public professional profile. Supabase provides
-email OTP authentication and persistent member, profile, visit-session, and interaction data.
+Onboarding + Cafe-introduction ("matching") product for the Corgi community: a member builds a
+confirmed profile (Exa People Search assists identity), starts a consented intro session, is matched
+to a real counterpart, confirms the meeting, and leaves private feedback — persisted on live Supabase.
+
+## Layout
+
+- `apps/onboarding-exa/` — the Next.js app (App Router). **This is the product.**
+- `packages/corgi-onboarding-shared/` — shared Zod schemas, security, events, and UI/styles.
+- `supabase/` — Postgres schema (migrations), config, seed, tests.
+- `docs/` — product spec, brand + design standards, reference. `docs/archive/` holds superseded material.
+- `scripts/`, `tests/` — seed scripts + Playwright e2e. Tooling (`package.json`, tsconfig, configs) is at the repo root (npm workspaces).
 
 When Supabase is not configured, the app shows a setup notice and remains available as an explicit
 preview using OTP `424242`. Preview mode never claims to save data. Cafe order/presence checks,
-matching, recognition photos, notification delivery, and the Rowan introduction are synthetic.
+recognition photos, and notification delivery are synthetic.
 
 ## Run
 
@@ -28,9 +36,9 @@ open a manual fallback.
 
 ## Supabase
 
-The versioned schema is at `../../supabase/migrations/202608160001_corgi_community_core.sql` from
-the repository root. After creating a development project, link and apply it from the repository
-root:
+The versioned schema lives in `supabase/migrations/` at the repository root (starting with
+`202608160001_corgi_community_core.sql`). After creating a development project, link and apply it
+from the repository root:
 
 ```bash
 supabase login

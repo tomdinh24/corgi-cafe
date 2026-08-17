@@ -2,8 +2,8 @@
 
 ## Implemented experience
 
-The active Exa app now follows the approved `ONBOARDING-JOURNEY-R03` and
-`MATCHING-JOURNEY-R02` artifacts. Onboarding covers email or Google authentication, profile search
+The active Exa app (`apps/onboarding-exa`) implements the approved onboarding and matching journeys.
+Onboarding covers email or Google authentication, profile search
 disclosure, a user-confirmed Exa identity candidate, optional public links, profile preview, and
 profile confirmation. The post-onboarding flow covers the Cafe/community/later choice, Cafe gates,
 explicit conversation topics and boundaries, search/no-match states, a synthetic direct

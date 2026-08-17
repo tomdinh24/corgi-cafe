@@ -1,4 +1,4 @@
-# Corgi Cafe Community Connection — Codex Project Instructions
+# Corgi Cafe Community Connection — Claude Code Project Instructions
 
 ## What this project is
 
@@ -16,7 +16,8 @@ architecture remain gated on human product, privacy, legal, and vendor review.
   remains subject to human product acceptance.
 - `docs/product/post-order-discovery-landing-page-handoff.md` and its linked prototype are the
   current marketing and experience handoff for discovery after ordering.
-- `docs/product/onboarding-enrichment-proposal.md` is a research and experiment proposal. It does
+- `docs/archive/onboarding-enrichment-proposal.md` is an archived research/experiment proposal
+  (Crustdata direction; the shipped app uses Exa). It does
   not approve Crustdata, production architecture, data processing, or private-community operations.
 - `docs/DESIGN_SYSTEM.md` is the proposed frontend design foundation. It does not override product
   scope or authorize the use of proprietary assets.
@@ -69,17 +70,16 @@ the broader scope.
   external evidence.
 - Do not report a documentation change complete until links, headings, source fidelity where
   applicable, `git diff --check`, and `git status` have been reviewed.
-- The standalone landing prototype and Exa onboarding app are executable. Run the
-  onboarding workspace checks documented in `prototypes/community-onboarding-clickthroughs/README.md`
-  before claiming runtime verification.
+- The Exa onboarding app (`apps/onboarding-exa`) is executable. Run the workspace checks documented
+  in the root `README.md` before claiming runtime verification.
 - Preserve intentional Markdown hard line breaks and source-reference formatting when a whitespace
   check flags them.
 
 ## Safety and approvals
 
 - Never commit, print, or expose secrets or API keys.
-- Never use `--dangerously-bypass-approvals-and-sandbox` or weaken Codex sandbox or approval
-  settings to work around a denied action.
+- Never use `--dangerously-skip-permissions` or weaken sandbox or approval settings to work around
+  a denied action.
 - Confirm before irreversible or outward-facing actions such as pushing, deploying, deleting data,
   or sending messages.
 - Do not infer networking intent, availability, or openness from orders, timestamps, or loyalty
@@ -97,7 +97,7 @@ role, not a generic skill or an invented persona.
 
 - Resolve named leaders through `~/.ai-os/leadership/registry.md`.
 - Invoke a new turn with `~/.ai-os/bin/ai-org talk <role> --run --prompt "<request>"`.
-- Add `--resume` to continue the stored Codex thread.
+- Add `--resume` to continue the stored thread.
 - Repeat `--image <path>` when visual evidence is part of the review.
 - Never substitute a generic workflow for a named persistent leader.
 - Ask only when the requested role or project context is genuinely ambiguous.
@@ -117,8 +117,9 @@ implementation, or review subagents in this workspace.
 
 ## Cross-project context compatibility
 
-Codex does not automatically load Claude Code's global instructions or auto-memory. When durable
-working style, design feedback, or validated cross-project context is relevant:
+Claude Code loads `~/.claude/CLAUDE.md` globally, but the Tom-OS auto-memory only auto-loads in the
+Tom-OS project. When durable working style, design feedback, or validated cross-project context is
+relevant to this repo:
 
 1. Read `~/.claude/projects/-Users-tomlam-Projects-Tom-OS/memory/MEMORY.md` as the index.
 2. Apply entries prefixed `feedback_`, `user_`, or `core_` when relevant.

@@ -8,7 +8,7 @@
 - **Owners:** Standing Marketing Lead and Design Lead
 - **Product review:** Standing Product Lead terminology incorporated
 - **Writing standard:** [Corgi Cafe Brand Writing Guide](../BRAND_WRITING.md)
-- **Prototype:** [`../../prototypes/community-activation-landing/index.html`](../../prototypes/community-activation-landing/index.html)
+- **Prototype (archived):** [`docs/archive/community-activation-landing/index.html`](../archive/community-activation-landing/index.html)
 
 ---
 
@@ -254,7 +254,7 @@ This artifact is a visual and interaction prototype. It intentionally contains:
 - no live matching.
 
 Production implementation follows human acceptance of the
-[onboarding enrichment proposal](./onboarding-enrichment-proposal.md) and the complete onboarding
+[onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md) and the complete onboarding
 experience design.
 
 Crustdata is the selected shadow-test candidate only. This handoff does not approve it for

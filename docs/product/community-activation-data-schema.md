@@ -2,9 +2,19 @@
 
 **What this is:** the definition of every piece of data the community-activation platform stores, where each UI input lands, its type, and *why* we keep it. This is the contract for the Supabase Postgres database.
 
-**Source of truth in code:**
-- `supabase/migrations/202608160001_corgi_community_core.sql` — core schema, RLS, privacy RPCs, storage bucket.
-- `supabase/migrations/202608160002_matching_service.sql` — the matcher (`request_introduction`).
+**Source of truth in code** — the full migration set in `supabase/migrations/` (applied in order):
+- `202608160001_corgi_community_core.sql` — core schema, RLS, privacy RPCs, storage bucket.
+- `202608160002_matching_service.sql` — the matcher (`request_introduction`).
+- `202608170001_no_repeat_matches_and_feedback_scale.sql` — no-repeat rule + 5-point feedback scale.
+- `202608180001_allow_rematch.sql` — relaxes the no-repeat rule (rematching allowed).
+- `202608180002_recognition_media_mime.sql` / `202608180003_recognition_media_update_policy.sql` — recognition-media MIME + update RLS.
+- `202608180004_expire_introduction.sql` — introduction expiry sweep.
+- `202608180005_llm_matching.sql` — LLM-assisted matching path.
+- `202608180006_profile_enrichment.sql` — derived career-context enrichment on `profiles`.
+- `202608180007_match_preferences.sql` — per-member match preferences.
+- `202608190001_profile_avatars.sql` — `profiles.avatar_url` + public `avatars` bucket.
+
+The core dictionary below reflects `0001`–`0002`; the later migrations extend it (rematch, LLM matching, enrichment, match preferences, avatars) — check each migration for the exact columns it adds.
 
 ## Storage principles (why the shape is what it is)
 

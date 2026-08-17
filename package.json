@@ -1,5 +1,5 @@
 {
-  "name": "corgi-community-onboarding-clickthroughs",
+  "name": "corgi-cafe",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
