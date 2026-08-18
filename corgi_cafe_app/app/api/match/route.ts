@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createCorgiAdminClient, createCorgiServerClient, getSupabaseConfig } from "../../../lib/supabase";
-import { rankBestMatch, type PersonBlob, type PreferenceHint } from "../../../lib/matcher";
+import { rankBestMatch, describeReason, type PersonBlob, type PreferenceHint } from "../../../lib/matcher";
 
 const Body = z.object({ sessionId: z.string().uuid() });
 
@@ -52,14 +52,15 @@ export async function POST(request: Request) {
           chosenTargetSessionId = ranked.sessionId;
           overrideExplanation = ranked.reason || null;
           // The stored reason is directional (about the counterpart, addressed to the requester), so
-          // the counterpart would otherwise be shown a description of themselves. Rank the reverse
-          // direction too — same grounding and company-name rules — so each side sees a reason about
-          // the OTHER person. A null result (below-threshold / model unavailable) simply lets the RPC
-          // build the deterministic mirror.
+          // the counterpart would otherwise be shown a description of themselves. Write the reverse
+          // reason too — grounded in the counterpart's view of the requester, same company-name rules
+          // — so each side sees a substantive reason about the OTHER person. describeReason (not the
+          // scored ranker) is used here: the match is already committed, so the second person's reason
+          // must not degrade to the generic fallback just because their side would score lower. "" on
+          // failure lets the RPC build the deterministic mirror.
           const counterpartBlob = candidates.find((c) => c.sessionId === ranked.sessionId);
           if (counterpartBlob) {
-            const reverse = await rankBestMatch(counterpartBlob, [requester]);
-            counterpartExplanation = reverse?.reason || null;
+            counterpartExplanation = (await describeReason(counterpartBlob, requester)) || null;
           }
         }
       }

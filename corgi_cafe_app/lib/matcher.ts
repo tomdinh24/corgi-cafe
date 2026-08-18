@@ -62,6 +62,52 @@ function compact(p: PersonBlob) {
   };
 }
 
+// One-directional reason writer, used for the counterpart's side of an introduction. rankBestMatch
+// answers "is this a good enough match?" (and returns null below MIN_SCORE); this is different — the
+// match is already committed, we just need a grounded sentence telling `viewer` why meeting
+// `counterpart` is worthwhile. No scoring, no threshold, so the second person never degrades to a
+// generic fallback just because their side scored a hair lower. Returns "" on any failure → the
+// caller falls back to the deterministic sentence.
+export async function describeReason(viewer: PersonBlob, counterpart: PersonBlob): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "";
+  const model = { you: compact(viewer), personYouWouldMeet: compact(counterpart) };
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 90,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You write the single-sentence reason one person should meet another for a short, in-person chat at a cafe. You are given `you` (the reader) and `personYouWouldMeet`. A worthwhile reason can be practical (their offer meets your ask, or yours meets theirs), a shared goal or topic, or simply an interesting conversation in its own right. Use the `background` (career headline, founder status, past companies, and a `web` section describing what their company does, its stage, hiring, or an investor's thesis) as real signal when present. " +
+              "Return ONLY JSON: {\"reason\": string}. " +
+              "reason is one warm, natural sentence under 30 words, addressed to the reader as \"you\", grounded ONLY in the given facts — never invent names, jobs, or details. Do NOT name the other person's company; refer to it by WHAT IT DOES instead (say 'a robotics company' or 'someone building a crypto exchange', never 'Atoms' or 'Coinbase').",
+          },
+          { role: "user", content: JSON.stringify(model) },
+        ],
+      }),
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return "";
+    const payload = await response.json();
+    const text = payload?.choices?.[0]?.message?.content;
+    if (typeof text !== "string") return "";
+    const parsed = JSON.parse(text) as { reason?: unknown };
+    return typeof parsed.reason === "string" ? parsed.reason.trim().slice(0, 300) : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function rankBestMatch(requester: PersonBlob, candidates: PersonBlob[], preference?: PreferenceHint | null): Promise<RankedMatch | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   const pool = candidates.filter((c) => typeof c.sessionId === "string" && c.sessionId);
