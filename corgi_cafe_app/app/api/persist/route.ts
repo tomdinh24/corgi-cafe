@@ -44,6 +44,10 @@ export async function POST(request: Request) {
         source_host: sourceHost(source.url),
         identifier_only: source.kind === "linkedin_identifier",
         member_confirmed: true,
+        // Links the member confirmed as their own are exchanged once BOTH people tap "we met" — the
+        // mutual-meeting gate IS the permission boundary. Without this the flag defaulted to false and
+        // a real member's links (LinkedIn included) were never revealed, so no one could follow up.
+        share_after_meeting: true,
       }));
       const { error: sourceError } = await supabase!.from("profile_sources").upsert(rows, { onConflict: "member_id,source_kind,source_url" });
       if (sourceError) return NextResponse.json({ message: "Your profile saved, but a source could not be attached." }, { status: 502 });
@@ -86,7 +90,24 @@ export async function POST(request: Request) {
       .update({ private_decision: data.decision.choice, decided_at: new Date().toISOString() })
       .eq("recommendation_id", data.decision.recommendationId)
       .eq("member_id", memberId);
-    return error ? NextResponse.json({ message: "Your choice could not be recorded." }, { status: 502 }) : NextResponse.json({ status: "saved" });
+    if (error) return NextResponse.json({ message: "Your choice could not be recorded." }, { status: 502 });
+    // A pass ends the introduction for both: the security-definer RPC closes the recommendation,
+    // retires the decliner's session, and returns the counterpart's session to the searching pool so
+    // they aren't stranded on a match the decliner already killed. Best-effort — the private decision
+    // is already recorded, and the counterpart's client also polls, so a transient RPC failure still
+    // resolves when the intro window lapses.
+    if (data.decision.choice === "pass") {
+      await supabase!.rpc("decline_introduction", { target_recommendation_id: data.decision.recommendationId });
+    }
+    return NextResponse.json({ status: "saved" });
+  }
+
+  if (data.kind === "finish_session") {
+    // "Finish for today" — the security-definer RPC ends any live, not-yet-met introduction so the
+    // counterpart is freed back to the pool instead of stranded, then retires the caller's own active
+    // sessions. A match both sides already met is left intact so it stays on the dashboard.
+    const { error } = await supabase!.rpc("finish_my_visit");
+    return error ? NextResponse.json({ message: "Could not close your session." }, { status: 502 }) : NextResponse.json({ status: "saved" });
   }
 
   if (data.kind === "meeting") {

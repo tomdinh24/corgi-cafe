@@ -19,7 +19,11 @@ export type PersonBlob = {
   background?: Record<string, unknown> | null;
 };
 
-export type RankedMatch = { sessionId: string; score: number; reason: string };
+// Both directional reasons come from the single ranking call: `reason` is for the requester (about
+// the chosen counterpart), `counterpartReason` is for the counterpart (about the requester). The
+// model already reasons over both people's context to make the pick, so it drafts both here rather
+// than paying for a second round-trip.
+export type RankedMatch = { sessionId: string; score: number; reason: string; counterpartReason: string };
 
 // Learned from this member's own past introductions (Tier C flywheel): counterpart types they chose
 // to continue with / rated well ("liked"), vs. passed on / rated poorly ("passed"). Empty until real
@@ -31,8 +35,12 @@ const MIN_SCORE = 55;
 const MODEL = "gpt-4.1-mini";
 const TIMEOUT_MS = 6000;
 
-// Trim the stored enrichment to the fields useful for ranking (drop the raw role list to keep the
-// prompt lean); `web` carries the URL-derived signal (company stage, hiring, investor thesis, digest).
+// Trim the stored enrichment to the fields useful for ranking; `web` carries the URL-derived signal
+// (company stage, hiring, investor thesis, digest). We keep a COMPACT career trajectory too: the raw
+// `roles` list is verbose, but "Title at Company" per role carries founder titles, notable past
+// companies, and progression — strong matching signal that is otherwise lost for anyone whose founder
+// status lives only in `roles` (e.g. no `web` block). Without it a past founder reads as a plain
+// current-title person and the ranker can't find the shared "we both built startups" thread.
 function leanBackground(bg: PersonBlob["background"]) {
   if (!bg || typeof bg !== "object") return undefined;
   const src = bg as Record<string, unknown>;
@@ -43,6 +51,19 @@ function leanBackground(bg: PersonBlob["background"]) {
     if (Array.isArray(value) && value.length === 0) continue;
     if (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0) continue;
     out[key] = value;
+  }
+  if (Array.isArray(src.roles)) {
+    const rawRoles = src.roles as Array<Record<string, unknown>>;
+    const roles = rawRoles
+      .filter((r) => r && (typeof r.title === "string" || typeof r.company === "string"))
+      .slice(0, 6)
+      .map((r) => [r.title, r.company].filter((v) => typeof v === "string" && (v as string).trim()).join(" at "))
+      .filter(Boolean);
+    if (roles.length) out.roles = roles;
+    // Surface a founder flag when a title says so, unless the web block already asserted one.
+    if (out.isFounder === undefined && rawRoles.some((r) => typeof r?.title === "string" && /\b(co-?)?founder\b|\bceo\b/i.test(r.title as string))) {
+      out.isFounder = true;
+    }
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -60,6 +81,52 @@ function compact(p: PersonBlob) {
     canOffer: p.canOffer ?? undefined,
     background,
   };
+}
+
+// One-directional reason writer, used for the counterpart's side of an introduction. rankBestMatch
+// answers "is this a good enough match?" (and returns null below MIN_SCORE); this is different — the
+// match is already committed, we just need a grounded sentence telling `viewer` why meeting
+// `counterpart` is worthwhile. No scoring, no threshold, so the second person never degrades to a
+// generic fallback just because their side scored a hair lower. Returns "" on any failure → the
+// caller falls back to the deterministic sentence.
+export async function describeReason(viewer: PersonBlob, counterpart: PersonBlob): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "";
+  const model = { you: compact(viewer), personYouWouldMeet: compact(counterpart) };
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 90,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You write the single-sentence reason one person should meet another for a short, in-person chat at a cafe. You are given `you` (the reader) and `personYouWouldMeet`. A worthwhile reason can be practical (their offer meets your ask, or yours meets theirs), a shared goal or topic, or simply an interesting conversation in its own right. Use the `background` (career headline, founder status, past companies, and a `web` section describing what their company does, its stage, hiring, or an investor's thesis) as real signal when present. " +
+              "Return ONLY JSON: {\"reason\": string}. " +
+              "reason is one warm, natural sentence under 30 words, shown to `you` on a card ABOUT `personYouWouldMeet`. Describe `personYouWouldMeet` BY THEIR FIRST NAME (their role, work, background, or what they want) plus how meeting them connects to your own goals or interests (\"...matching your interest in ...\"). Attribute every role and trait to `personYouWouldMeet` — never write \"your\" about their job or merge the two of you into one person. Ground it ONLY in the given facts; never invent; if the gain is modest, be honest. Do NOT name their company; refer to it by WHAT IT DOES instead (say 'a robotics company' or 'someone building a crypto exchange', never 'Atoms' or 'Coinbase').",
+          },
+          { role: "user", content: JSON.stringify(model) },
+        ],
+      }),
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return "";
+    const payload = await response.json();
+    const text = payload?.choices?.[0]?.message?.content;
+    if (typeof text !== "string") return "";
+    const parsed = JSON.parse(text) as { reason?: unknown };
+    return typeof parsed.reason === "string" ? parsed.reason.trim().slice(0, 300) : "";
+  } catch {
+    return "";
+  }
 }
 
 export async function rankBestMatch(requester: PersonBlob, candidates: PersonBlob[], preference?: PreferenceHint | null): Promise<RankedMatch | null> {
@@ -90,16 +157,16 @@ export async function rankBestMatch(requester: PersonBlob, candidates: PersonBlo
       body: JSON.stringify({
         model: MODEL,
         temperature: 0,
-        max_tokens: 220,
+        max_tokens: 320,
         response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "You match one person at a cafe with the single best counterpart for a short, in-person conversation. A great match is simply one both people would be glad they had. That value can come from any of: (a) practical fit — one person's ask meets the other's offer; (b) shared goals or overlapping topics; or (c) an interesting conversation in its own right — a genuine shared curiosity, a niche interest in common, or complementary experiences/perspectives worth trading. Weigh all three: a strong human-interest connection can outrank a purely transactional one. Reason over the actual free-text intent and bios, not just the topic labels. When a candidate has a `background` (career headline, whether they're a founder, past companies, and a `web` section with company stage, whether they're hiring, or an investor's focus/thesis), use it as real signal — e.g. a seed-stage founder raising money and an investor whose thesis fits, someone hiring and someone job-seeking, or shared past employers. If a `preferenceHint` is present, it summarizes counterpart types this requester previously valued (`liked`) or declined (`passed`) — nudge with it, but the current candidates' actual fit still dominates. Be honest — if no one is a good fit on any of these, score low rather than forcing a match." +
-              "Return ONLY JSON: {\"bestSessionId\": string, \"score\": number 0-100, \"reason\": string}. " +
+              "You match one person at a cafe with the single best counterpart for a short, in-person conversation. A great match is simply one both people would be glad they had. That value can come from any of: (a) practical fit — one person's ask meets the other's offer; (b) shared goals or overlapping topics; or (c) an interesting conversation in its own right — a genuine shared curiosity, a niche interest in common, or complementary experiences/perspectives worth trading. Weigh all three: a strong human-interest connection can outrank a purely transactional one. Reason over the actual free-text intent and bios, not just the topic labels. When a candidate has a `background` (career headline, whether they're a founder, past companies, and a `web` section with what their company does, its stage, whether they're hiring, or an investor's focus/thesis), use it as real signal — e.g. a seed-stage founder raising money and an investor whose thesis fits, someone hiring and someone job-seeking, or shared past employers. If a `preferenceHint` is present, it summarizes counterpart types this requester previously valued (`liked`) or declined (`passed`) — nudge with it, but the current candidates' actual fit still dominates. Prioritize MUTUAL benefit: the best match is one where BOTH people come away with something — a shared interest or curiosity (startups, a domain, a craft), overlapping goals, or each person having what the other wants. A strongly one-sided pairing (valuable to one, thin for the other) should score below an equally-relevant mutual one; look actively for the two-way thread before settling for a one-directional fit. Be honest — if no one is a good fit on any of these, score low rather than forcing a match." +
+              "Return ONLY JSON: {\"bestSessionId\": string, \"score\": number 0-100, \"reason\": string, \"counterpartReason\": string}. " +
               "bestSessionId MUST be one of the given candidate sessionIds. score is your confidence this is a worthwhile match both would value. " +
-              "reason is one warm, natural sentence under 30 words addressed to the requester, grounded ONLY in the given facts — never invent names, jobs, or details.",
+              "Write TWO reasons, each one warm, natural sentence under 30 words, grounded ONLY in the given facts — never invent names, jobs, or details. Each reason is shown to one person on a card ABOUT the other person, so write each as a description of the OTHER person BY THEIR FIRST NAME (their role, work, background, or what they want) plus how meeting them connects to the reader's own goals or interests (\"...matching your interest in ...\"). Lead with the MUTUAL thread whenever one exists — a shared interest or curiosity (startups, a domain, a craft), or a two-way exchange where each has something for the other — since the match was made because both sides gain; do not flatten a genuinely mutual pairing into a one-way \"you teach / you learn\". `reason` is shown to the REQUESTER, so it describes the CHOSEN CANDIDATE by name. `counterpartReason` is shown to the CHOSEN CANDIDATE, so it describes the REQUESTER by name. Attribute every role and trait to the correct named person — never write \"your\" about the other person's job, and never merge the two people into one. Only when the value is genuinely one-directional, say so modestly rather than inventing mutual benefit. In BOTH, do NOT name either person's company; refer to it by WHAT IT DOES instead (say 'a robotics company' or 'someone building a crypto exchange', never 'Atoms' or 'Coinbase').",
           },
           { role: "user", content: JSON.stringify(model) },
         ],
@@ -110,7 +177,7 @@ export async function rankBestMatch(requester: PersonBlob, candidates: PersonBlo
     const payload = await response.json();
     const text = payload?.choices?.[0]?.message?.content;
     if (typeof text !== "string") return null;
-    const parsed = JSON.parse(text) as { bestSessionId?: unknown; score?: unknown; reason?: unknown };
+    const parsed = JSON.parse(text) as { bestSessionId?: unknown; score?: unknown; reason?: unknown; counterpartReason?: unknown };
 
     const sessionId = typeof parsed.bestSessionId === "string" ? parsed.bestSessionId : "";
     const chosen = idBySession.get(sessionId);
@@ -118,7 +185,8 @@ export async function rankBestMatch(requester: PersonBlob, candidates: PersonBlo
     const score = typeof parsed.score === "number" ? parsed.score : 0;
     if (score < MIN_SCORE) return null; // honest no-match rather than a weak introduction.
     const reason = typeof parsed.reason === "string" ? parsed.reason.trim().slice(0, 300) : "";
-    return { sessionId, score, reason };
+    const counterpartReason = typeof parsed.counterpartReason === "string" ? parsed.counterpartReason.trim().slice(0, 300) : "";
+    return { sessionId, score, reason, counterpartReason };
   } catch {
     return null;
   }

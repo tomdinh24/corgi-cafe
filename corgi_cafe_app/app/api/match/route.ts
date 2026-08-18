@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createCorgiAdminClient, createCorgiServerClient, getSupabaseConfig } from "../../../lib/supabase";
-import { rankBestMatch, type PersonBlob, type PreferenceHint } from "../../../lib/matcher";
+import { rankBestMatch, describeReason, type PersonBlob, type PreferenceHint } from "../../../lib/matcher";
 
 const Body = z.object({ sessionId: z.string().uuid() });
 
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   // Rank the queue with a model when possible; degrade silently to the deterministic RPC otherwise.
   let chosenTargetSessionId: string | null = null;
   let overrideExplanation: string | null = null;
+  let counterpartExplanation: string | null = null;
   try {
     const admin = createCorgiAdminClient();
     if (admin) {
@@ -49,7 +50,17 @@ export async function POST(request: Request) {
         const ranked = await rankBestMatch(requester, candidates, preference);
         if (ranked) {
           chosenTargetSessionId = ranked.sessionId;
+          // Both directional reasons come from the single ranking call — each side sees a reason about
+          // the OTHER person, written by a model looking at both people's context at once. No second
+          // round-trip on the common path.
           overrideExplanation = ranked.reason || null;
+          counterpartExplanation = ranked.counterpartReason || null;
+          // Rare: the model returned a pick but omitted the counterpart reason. Fill it with a single
+          // grounded pass so the counterpart never drops to the generic deterministic fallback.
+          if (!counterpartExplanation) {
+            const counterpartBlob = candidates.find((c) => c.sessionId === ranked.sessionId);
+            if (counterpartBlob) counterpartExplanation = (await describeReason(counterpartBlob, requester)) || null;
+          }
         }
       }
     }
@@ -61,6 +72,7 @@ export async function POST(request: Request) {
     target_session_id: sessionId,
     chosen_target_session_id: chosenTargetSessionId,
     override_explanation: overrideExplanation,
+    counterpart_override_explanation: counterpartExplanation,
   });
   if (error) return NextResponse.json({ message: "Matching is unavailable right now." }, { status: 502 });
   if (!data) return NextResponse.json({ status: "no_match" });

@@ -6,10 +6,10 @@
 **Audience:** Corgi Cafe Tech Ops  
 **Date:** August 15, 2026  
 **Phase:** Product definition with post-order discovery prototype; production architecture follows acceptance  
-**Depends on:** [Community activation problem brief](./community-activation-problem-brief.md)  
+**Depends on:** [Community activation problem brief](./01-problem-brief.md)  
 **Product review:** Standing Product Lead approved for human product acceptance
 
-**Related work:** [Landing-page handoff](./post-order-discovery-landing-page-handoff.md) · [Onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md)
+**Related work:** [Landing-page handoff](./03-landing-page-handoff.md) · [Onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md)
 
 ---
 
@@ -62,7 +62,7 @@ The shared target condition is more important than the persona label:
 - **Typical context:** Angel, scout, investment-team member, partner, or fund manager with a defined thesis and stage focus.
 - **Constructive needs:** Market learning, founder relationships, thesis-relevant conversations, co-investors, or LP relationships for fund managers.
 - **Potential contribution:** Pattern recognition, company-building feedback, capital context, and relevant introductions.
-- **Guardrail:** Investor presence never implies willingness to receive a pitch. Thesis, stage, conversation preference, and reciprocal value—not public prestige—determine fit.
+- **Guardrail:** Investor presence never implies willingness to receive a pitch. Thesis, stage, conversation preference, and reciprocal value, not public prestige, determine fit.
 
 ### Opportunity-seeking member
 
@@ -90,9 +90,9 @@ The shared target condition is more important than the persona label:
 1. **Discover:** After ordering, the visitor sees a receipt, confirmation-page, pager, counter, table, or pickup-area message offering a relevant introduction during this visit.
 2. **Understand:** A landing page explains the value, session-level permission, expected behavior, privacy boundary, and time commitment before signup.
 3. **Enter email:** The visitor enters an email address, including Gmail, and sees the applicable privacy disclosure before any production lookup.
-4. **Verify email:** The visitor enters a short-lived one-time passcode.
+4. **Create an account:** The visitor signs up with an email and a password, or continues with Google.
 5. **Identify:** The visitor enters first name, last name, and broad city or metro area on focused, sequential screens.
-6. **Find a profile:** Corgi searches Crustdata and asks the visitor to select a sourced candidate. If confidence is low or no candidate is correct, Corgi requests a LinkedIn URL and preserves a short manual fallback.
+6. **Find a profile:** Corgi searches Exa People Search and asks the visitor to select a sourced candidate. If confidence is low or no candidate is correct, Corgi requests a LinkedIn URL and preserves a short manual fallback.
 7. **Add context:** The visitor may add one personal, company, portfolio, GitHub, or other professional URL to improve enrichment.
 8. **Confirm the profile:** Corgi builds one sourced, editable profile. No candidate or imported field becomes durable until the visitor confirms or corrects it.
 9. **Choose a path:** The visitor chooses `Connect at Corgi now`, `Record private-community interest`, or `Maybe later`. The interest choice grants no membership; maybe later saves the profile and exits privately.
@@ -133,9 +133,9 @@ The shared target condition is more important than the persona label:
 
 Onboarding should be progressive: collect the minimum needed for a credible first introduction, then enrich the durable profile over time.
 
-The proposed first enrichment experiment uses Crustdata to search by exact full name and broad
+The first enrichment experiment uses Exa People Search to search by exact full name and broad
 location, presents no more than three candidates, and calls base enrichment only after the member
-confirms a candidate. Crustdata is not yet approved for production. Provider failure, ambiguity, or
+confirms a candidate. No people-search provider is yet approved for production. Provider failure, ambiguity, or
 member preference must lead to a short manual flow without blocking same-visit activation. See the
 [onboarding enrichment proposal](../archive/onboarding-enrichment-proposal.md) for pricing, legal, privacy,
 and go/no-go criteria.
@@ -260,7 +260,7 @@ Required controls:
 - Block this member.
 - Report inappropriate behavior.
 
-The introduction becomes active when it is delivered; neither member must accept it before acting. If either member skips it, Corgi deactivates it for both and tells the other person only that the introduction is no longer active. It must not identify who skipped or disclose a reason. Members should approach only while the introduction is active.
+The introduction is delivered to both eligible members at once, with no per-person connection request. Each member privately taps Continue to proceed, and the match is confirmed only when both continue. If either member passes, Corgi ends that introduction and returns the other person to the matching pool to be paired with someone new. It must not identify who passed or disclose a reason.
 
 The product does not create a permanent connection, follower relationship, or messaging thread as a side effect.
 
@@ -335,7 +335,7 @@ Optional social sharing is secondary. A member may share a generic Corgi moment,
 
 ## 17. MVP scope
 
-### P0 — required
+### P0: required
 
 - Post-order awareness surface and educational landing page.
 - Centralized Corgi signup and progressive onboarding, separate from ordering and loyalty.
@@ -351,7 +351,7 @@ Optional social sharing is secondary. A member may share a generic Corgi moment,
 - Post-interaction meeting, relevance, usefulness, and boundary feedback.
 - Synthetic members and visit states for product demonstration.
 
-### P1 — after initial validation
+### P1: after initial validation
 
 - Visit-adjacent “open later” scheduling refinements.
 - Saved private history of prior Corgi introductions.
@@ -394,7 +394,7 @@ Report each stage independently:
 Awareness
 → signup
 → email verified
-→ Crustdata candidate selected or fallback completed
+→ Exa candidate selected or fallback completed
 → profile confirmed
 → onboarding complete
 → connect-now branch selected
@@ -434,7 +434,7 @@ Awareness
 2. Multiple, incorrect, missing, or unavailable provider results fall through to correction, URL, or short manual onboarding without blocking the visitor.
 3. `Record private-community interest` grants no membership or discoverability; `Maybe later` saves a private profile without starting a session.
 4. Before any production lookup attempt, the visitor sees and acknowledges the legally approved privacy disclosure; if disclosure is insufficient or declined, manual onboarding remains available.
-5. Email verification must succeed before Crustdata is called; expired, incorrect, resent, and rate-limited OTP states remain recoverable.
+5. Account creation (email + password, or Google) must succeed before Exa is called; incorrect-password and duplicate-account states remain recoverable.
 6. The optional enrichment URL can be skipped without preventing profile confirmation.
 7. Inferred intent suggestions can begin selected, but the member can remove or add items and must explicitly confirm the final set. No commercial permission begins selected.
 8. A founder seeking GTM advice and an operator offering it are both open now; Corgi introduces them simultaneously with a specific reason and opener.
@@ -468,7 +468,7 @@ Proceed into experience design when Tech Ops accepts:
 - Session-level permission instead of per-match connection requests.
 - Progressive onboarding and the explicit-versus-inferred context boundary.
 - The centralized profile, three activation branches, and confirm-before-import enrichment contract.
-- Crustdata only as a shadow-test candidate until the proposal's legal, privacy, accuracy, and cost gates pass.
+- Exa (or the selected people-search provider) only as a shadow-test candidate until the proposal's legal, privacy, accuracy, and cost gates pass.
 - Availability and interaction controls.
 - Matching eligibility, relevance policy, and commercial guardrails.
 - The primary metric and pilot learning plan.

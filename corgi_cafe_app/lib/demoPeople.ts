@@ -3,9 +3,9 @@
 // DEMO_CAFE_CODE) and never appear in Live pools.
 //
 // `enrichment` is the same jsonb blob the enrichment pipeline (app/api/enrich) produces and the
-// matcher reads as `background`. It is baked in here from an anchored Exa lookup (see
-// scripts/seed-demo-pool.mjs / the enrichment build step) so the LLM ranker can write a specific,
-// grounded "why you two". Keep it optional so a person can be seeded before enrichment is filled in.
+// matcher reads as `background`. It is baked in here from an anchored Exa lookup (the enrichment
+// build step) so the LLM ranker can write a specific, grounded "why you two". Keep it optional so a
+// person can be seeded before enrichment is filled in.
 
 export type DemoEnrichment = {
   headline?: string;
@@ -32,6 +32,10 @@ export type DemoPerson = {
   topics: string[];
   useful: string;
   offer: string;
+  // Profile photo, revealed on the home match card/popup only AFTER both confirm they met (same gate
+  // as socials — see list_my_confirmed_matches). Placeholder headshot for the demo; swap for the real
+  // photo URL when available. Never scrape it from LinkedIn (see project instructions).
+  avatarUrl?: string;
   // Public links attached to the seeded profile (LinkedIn is the enrichment anchor — see build step).
   sources: { kind: DemoSourceKind; url: string }[];
   enrichment?: DemoEnrichment;
@@ -53,19 +57,16 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     topics: ["Product & technology", "AI & products", "Career stories"],
     useful: "Notes on consumer crypto/fintech product, and breaking into PM from a technical / ML background",
     offer: "Product strategy for fintech/crypto, PM career advice (especially from a data-science start), and intros around the Coinbase orbit",
+    avatarUrl: "https://i.pravatar.cc/240?u=richard.zhang@corgi.demo",
     sources: [{ kind: "linkedin_identifier", url: "https://www.linkedin.com/in/richardzhangxyz" }],
-    // Anchored on Richard's confirmed LinkedIn (linkedin.com/in/richardzhangxyz) via Exa people-search.
+    // Tier-A anchor only (as if Richard confirmed his own people-search candidate). The `web` block —
+    // what Coinbase does, stage, focus areas, digest — is derived at seed time by the real enrichment
+    // pipeline (lib/enrichment), exactly like a live member. Anchored on his confirmed LinkedIn.
     enrichment: {
       headline: "Product @ Coinbase · UChicago ’24",
       isFounder: false,
       currentCompany: "Coinbase",
       pastCompanies: ["Fermilab (data science research)", "University of Chicago Booth (ML research)"],
-      web: {
-        role: "Associate Product Manager, Product — Coinbase (Aug 2024–present)",
-        focus: "Consumer crypto products",
-        background: "Honors Data Science & Cognitive Science, University of Chicago ’24; ML / data-science research (Fermilab, UChicago Booth)",
-        basedIn: "New York",
-      },
     },
   },
   {
@@ -82,22 +83,20 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     topics: ["First customers", "Building community", "Product & technology"],
     useful: "GTM, growth, and strategy playbooks for consumer brands — and comparing notes on the founder path",
     offer: "Go-to-market strategy, early-customer acquisition, DTC growth, standing up a GTM function from scratch, and a founder’s perspective",
+    avatarUrl: "https://i.pravatar.cc/240?u=justin.ruiz@corgi.demo",
     sources: [
       { kind: "linkedin_identifier", url: "https://www.linkedin.com/in/justinruiz1" },
       { kind: "website", url: "https://atoms.co" },
     ],
-    // Anchored on Justin's confirmed LinkedIn (linkedin.com/in/justinruiz1) via Exa people-search.
+    // Tier-A anchor only (as if Justin confirmed his own people-search candidate). The `web` block —
+    // what Atoms does, stage, focus areas, digest — is derived at seed time by the real enrichment
+    // pipeline (lib/enrichment) from his listed atoms.co, exactly like a live member. Anchored on his
+    // confirmed LinkedIn.
     enrichment: {
       headline: "Senior Director, GTM at Atoms · former founder",
       isFounder: true, // founder background — co-founded LoungeLooks before Atoms
       currentCompany: "Atoms",
       pastCompanies: ["LoungeLooks (co-founder)"],
-      web: {
-        role: "Senior Director, GTM — rose from Strategy & Planning over ~5 years at Atoms (atoms.co)",
-        founderBackground: "Co-founded LoungeLooks before joining Atoms",
-        background: "UCLA (Psychology)",
-        basedIn: "Los Angeles",
-      },
     },
   },
 ];

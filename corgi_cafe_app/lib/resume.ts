@@ -1,3 +1,5 @@
+import { DEMO_CAFE_CODE } from "./cafes";
+
 // Session-resume logic, kept out of the "use client" component so it is a plain, testable module.
 // computeResume() turns the boot payload (config + auth status) into the exact screen/state a
 // returning visitor should land on. loadBoot() caches that payload for the current page-load so a
@@ -32,6 +34,7 @@ export type Resume = {
   links: Record<LinkKind, string>;
   step: number;
   sessionId: string;
+  sessionIsDemo: boolean;             // whether the active/resumed session belongs to Demo mode
   recommendationId: string;
   matchExpiresAt: number;
   pendingExpire: string | null;      // recommendation id whose lapsed intro must be expired server-side
@@ -74,7 +77,7 @@ export function computeResume(boot: BootData): Resume {
   const authMode = (boot.config?.authMode ?? "preview") as AuthMode;
   const setup = (boot.config?.supabase ?? "setup_required") as SetupMode;
   const empty: Record<LinkKind, string> = { linkedin_identifier: "", website: "", github: "", social: "" };
-  const base: Resume = { authMode, setup, authenticated: false, email: "", profile: null, links: empty, step: 0, sessionId: "", recommendationId: "", matchExpiresAt: 0, pendingExpire: null, pendingCounterpart: null };
+  const base: Resume = { authMode, setup, authenticated: false, email: "", profile: null, links: empty, step: 0, sessionId: "", sessionIsDemo: false, recommendationId: "", matchExpiresAt: 0, pendingExpire: null, pendingCounterpart: null };
   const resumable = authMode === "otp" || authMode === "magiclink" || authMode === "dev" || authMode === "password";
   const status = boot.status;
   if (!resumable || !status?.authenticated) return base;
@@ -95,8 +98,9 @@ export function computeResume(boot: BootData): Resume {
       : null,
     links,
   };
-  const active = status.activeSession as { id?: string; status?: string } | undefined;
+  const active = status.activeSession as { id?: string; status?: string; cafeCode?: string } | undefined;
   const activeRecommendationId = status.activeRecommendationId as string | undefined;
+  const activeIsDemo = active?.cafeCode === DEMO_CAFE_CODE;
   if (result.profile?.confirmed && active?.id && active?.status) {
     if ((active.status === "introduced" || active.status === "meeting") && activeRecommendationId) {
       // A "meeting" session is already past the intro window (both confirmed continue), so it never
@@ -109,6 +113,7 @@ export function computeResume(boot: BootData): Resume {
         result.step = 7;
       } else {
         result.sessionId = active.id;
+        result.sessionIsDemo = activeIsDemo;
         result.recommendationId = activeRecommendationId;
         if (active.status === "introduced") result.matchExpiresAt = expiresAt;
         result.pendingCounterpart = activeRecommendationId;
@@ -116,6 +121,7 @@ export function computeResume(boot: BootData): Resume {
       }
     } else if (active.status === "searching") {
       result.sessionId = active.id;
+      result.sessionIsDemo = activeIsDemo;
       result.step = 18;
     } else {
       result.step = 7;

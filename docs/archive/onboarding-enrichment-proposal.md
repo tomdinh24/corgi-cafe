@@ -17,7 +17,7 @@
 > This supersedes the Crustdata shadow test below as the immediate experiment. The Crustdata
 > analysis, including its manual-baseline phase, remains preserved as historical research, not a
 > current implementation decision. See
-> [community-onboarding-exa-prototype.md](../product/community-onboarding-exa-prototype.md).
+> [community-onboarding-exa-prototype.md](./community-onboarding-exa-prototype.md).
 
 ## 1. Recommendation
 

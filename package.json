@@ -4,7 +4,6 @@
   "workspaces": ["corgi_cafe_app", "packages/*"],
   "scripts": {
     "dev": "npm run dev --workspace=@corgi/cafe-app",
-    "dev:exa": "npm run dev --workspace=@corgi/cafe-app",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
