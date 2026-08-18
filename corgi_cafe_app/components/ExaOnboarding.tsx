@@ -565,6 +565,9 @@ export function ExaOnboarding() {
     if (!recommendationId) return;
     await save({ kind: "meeting", meeting: { recommendationId, answer } }).catch(() => undefined);
   };
+  // Retire the current session server-side so the home dashboard stops treating it as an intro in
+  // progress once the member is done for the day.
+  const finishSession = async () => { await save({ kind: "finish_session" }).catch(() => undefined); };
   const saveFeedback = (rating: "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful", note?: string) => {
     if (!recommendationId) return;
     void save({ kind: "feedback", feedback: { recommendationId, rating, note: note?.trim() || undefined } }).catch(() => undefined);
@@ -762,31 +765,41 @@ export function ExaOnboarding() {
   // (if any) with Resume, the grid of confirmed matches, and a "Start a chat" CTA into /start. Clicking
   // a match opens a small centered popup with that person's details (socials only after both met).
   if (homeView) {
-    const visibleMatches = matches.filter((m) => m.recommendationId !== recommendationId);
     const initialsFor = (first: string, last: string | null) => `${(first[0] ?? "").toUpperCase()}${(last?.[0] ?? "").toUpperCase()}` || "?";
+    // The in-progress intro (if any) and the confirmed matches render as cards in one grid, with Resume
+    // living inside the active card (no separate banner). `activeRec` is the resumable intro; `searching`
+    // is an active search with no counterpart yet. Confirmed cards drop the active one to avoid a dup.
+    const activeRec = recommendationId;
+    const searching = Boolean(sessionId && !recommendationId);
+    const confirmedCards = matches.filter((m) => m.recommendationId !== activeRec);
+    const hasAnything = Boolean(activeRec) || searching || confirmedCards.length > 0;
     return <Shell step={7} wide>
       <div className="dashboard">
         <div className="dash-hero">
           <span className="dash-you-avatar" aria-hidden="true">{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</span>
           <div><p className="journey-eyebrow">Welcome back</p><h1>{firstName || "Your Corgi home"}</h1></div>
         </div>
-        {sessionId && <button type="button" className="dash-active" onClick={resumeFlow}>
-          <span className="dash-active-dot" aria-hidden="true" />
-          <span className="dash-active-text">
-            <strong>{recommendationId ? `Introduction in progress${counterpart?.firstName ? ` with ${counterpart.firstName}` : ""}` : "You’re still looking"}</strong>
-            <small>{recommendationId ? "Pick up where you left off." : "Corgi is still finding someone worth meeting."}</small>
-          </span>
-          <span className="dash-active-cta" aria-hidden="true">Resume →</span>
-        </button>}
         <section className="dash-section">
-          <div className="dash-section-head"><h2>Your matches</h2><button type="button" className="journey-button primary dash-start" onClick={startChat}>Start a chat</button></div>
+          <div className="dash-section-head"><h2>My matches</h2><button type="button" className="journey-button primary dash-start" onClick={startChat}>Start a chat</button></div>
           {!matchesLoaded ? <div className="loader" aria-label="Loading your matches"><i/><i/><i/></div>
-            : visibleMatches.length === 0 ? <p className="dash-empty">No matches yet. Start a chat to meet someone worth talking to at Corgi.</p>
-            : <div className="matches-grid">{visibleMatches.map((m) => <button key={m.recommendationId} type="button" className="match-card" onClick={() => setOpenMatch(m)}>
-                <span className="match-card-avatar" aria-hidden="true">{isRealPhoto(m.avatarUrl) ? <img className="avatar-img" src={m.avatarUrl} alt="" /> : initialsFor(m.firstName, m.lastName)}</span>
-                <span className="match-card-text"><strong>{m.firstName}{m.lastName ? ` ${m.lastName}` : ""}</strong><small>{[m.roleTitle, m.company].filter(Boolean).join(" · ") || "Corgi match"}</small></span>
-                {m.bothMet && <span className="match-card-badge">Met</span>}
-              </button>)}</div>}
+            : !hasAnything ? <p className="dash-empty">No matches yet. Start a chat to meet someone worth talking to at Corgi.</p>
+            : <div className="matches-grid">
+                {searching && <button type="button" className="match-card active" onClick={resumeFlow}>
+                  <span className="match-card-avatar" aria-hidden="true">⋯</span>
+                  <span className="match-card-text"><strong>Still looking</strong><small>Corgi is finding someone worth meeting.</small></span>
+                  <span className="match-card-resume" aria-hidden="true">Resume →</span>
+                </button>}
+                {activeRec && <button type="button" className="match-card active" onClick={resumeFlow}>
+                  <span className="match-card-avatar" aria-hidden="true">{counterpart?.firstName?.[0]?.toUpperCase() ?? "•"}</span>
+                  <span className="match-card-text"><strong>{counterpart?.firstName ?? "Your match"}</strong><small>Introduction in progress</small></span>
+                  <span className="match-card-resume" aria-hidden="true">Resume →</span>
+                </button>}
+                {confirmedCards.map((m) => <button key={m.recommendationId} type="button" className="match-card" onClick={() => setOpenMatch(m)}>
+                  <span className="match-card-avatar" aria-hidden="true">{isRealPhoto(m.avatarUrl) ? <img className="avatar-img" src={m.avatarUrl} alt="" /> : initialsFor(m.firstName, m.lastName)}</span>
+                  <span className="match-card-text"><strong>{m.firstName}{m.lastName ? ` ${m.lastName}` : ""}</strong><small>{[m.roleTitle, m.company].filter(Boolean).join(" · ") || "Corgi match"}</small></span>
+                  {m.bothMet && <span className="match-card-badge">Met</span>}
+                </button>)}
+              </div>}
         </section>
       </div>
       {openMatch && <div className="match-modal" role="dialog" aria-modal="true" aria-labelledby="match-modal-title" onClick={() => setOpenMatch(null)}>
@@ -844,7 +857,7 @@ export function ExaOnboarding() {
   if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} style={photoSelfUrl ? { backgroundImage: `url(${photoSelfUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelfUrl ? "" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} style={photoNearbyUrl ? { backgroundImage: `url(${photoNearbyUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearbyUrl ? "" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
   if (step === 14) { const bucket = windowBucket(meetingSecondsLeft); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer">{bucket ? <><strong>~{bucket}</strong><span>left</span></> : <><strong>No rush</strong><span>take your time</span></>}</div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); if (mode === "demo") { try { await jsonPost("/api/demo/confirm-meeting", { recommendationId }); } catch { /* links stay pending */ } } await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
   if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => link.url.startsWith("http") ? <a key={index} className="approved-link" href={link.url} target="_blank" rel="noopener noreferrer">{socialLabel(link.kind)}</a> : <span key={index} className="approved-link">{socialLabel(link.kind)}: {link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;
-  if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['very_unhelpful','😞','Not useful'],['unhelpful','🙁','Not really'],['neutral','😐','Okay'],['helpful','🙂','Useful'],['very_helpful','😄','Very useful']] as const).map(([value,emoji,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} aria-label={label} title={label} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value, feedbackNote); }}><span aria-hidden="true">{emoji}</span></button>)}</div><div className="feedback-note"><TextBox label="Add a note (optional)" value={feedbackNote} maxLength={600} placeholder="What made it useful, or not? Only you and Corgi see this." onChange={(e) => setFeedbackNote(e.target.value)} /></div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("meet_another_selected"); setFeedback(""); setFeedbackNote(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("intro_session_finished"); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
+  if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['very_unhelpful','😞','Not useful'],['unhelpful','🙁','Not really'],['neutral','😐','Okay'],['helpful','🙂','Useful'],['very_helpful','😄','Very useful']] as const).map(([value,emoji,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} aria-label={label} title={label} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value, feedbackNote); }}><span aria-hidden="true">{emoji}</span></button>)}</div><div className="feedback-note"><TextBox label="Add a note (optional)" value={feedbackNote} maxLength={600} placeholder="What made it useful, or not? Only you and Corgi see this." onChange={(e) => setFeedbackNote(e.target.value)} /></div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("meet_another_selected"); setFeedback(""); setFeedbackNote(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("intro_session_finished"); void finishSession(); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
   // "Still looking" pool. No push/email notification exists, so this is a live waiting screen: a
   // spinner while the 5-second poll above watches for someone to pair with (which carries the member
   // straight into the introduction), plus an always-available way to leave. Leaving clears the local

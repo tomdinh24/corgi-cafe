@@ -98,6 +98,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "saved" });
   }
 
+  if (data.kind === "finish_session") {
+    // "Finish for today" — retire the caller's active session so the home dashboard stops showing it
+    // as an introduction in progress. RLS scopes the update to the member's own rows.
+    const { error } = await supabase!.from("visit_intro_sessions")
+      .update({ status: "completed" })
+      .eq("member_id", memberId)
+      .in("status", ["draft", "searching", "waiting", "introduced", "meeting"]);
+    return error ? NextResponse.json({ message: "Could not close your session." }, { status: 502 }) : NextResponse.json({ status: "saved" });
+  }
+
   if (data.kind === "meeting") {
     // A meeting counts only once both members independently confirm 'met'.
     const { error } = await supabase!.from("meeting_confirmations")

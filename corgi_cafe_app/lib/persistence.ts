@@ -92,6 +92,7 @@ export const PersistPayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("decision"), decision: DecisionPayloadSchema }),
   z.object({ kind: z.literal("meeting"), meeting: MeetingPayloadSchema }),
   z.object({ kind: z.literal("feedback"), feedback: FeedbackPayloadSchema }),
+  z.object({ kind: z.literal("finish_session") }),
 ]);
 
 export function sourceHost(value: string) {
