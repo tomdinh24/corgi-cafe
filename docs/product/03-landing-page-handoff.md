@@ -20,7 +20,7 @@ centralized Corgi onboarding flow.
 The page should make three things clear within a few seconds:
 
 1. Corgi can introduce people who are already in the Cafe.
-2. The visitor starts by saying what they want to talk about.
+2. The visitor starts by choosing a topic they want to talk about.
 3. An introduction happens only when both people want that kind of conversation.
 
 The page does not promise that someone will be available.
@@ -59,70 +59,59 @@ Internal product terms such as `eligible`, `mutual fit`, `current intent`, `visi
 
 **Headline:** Want to meet someone at Corgi?
 
-**Supporting copy:** Tell Corgi what you're working on and what you'd like to talk about. If someone
-here wants that conversation too, we'll introduce you.
+**Supporting copy:** Corgi brings together people at the Cafe who are open to the same kind of conversation.
 
 **CTA:** Start a chat
 
-There is no helper text beneath the CTA.
+There is no helper text beneath the CTA. (Header nav: "How it works" and "Community code".)
 
 ### 4.2 How it works
 
-**Headline:** Start with what you actually want to talk about.
+**Headline:** Find the conversation that fits.
 
-**Supporting copy:** No bio-writing contest. Give Corgi just enough to make a good introduction.
+**Supporting copy:** Share what sounds interesting today. Corgi takes care of the introduction.
 
-1. **Say what's on your mind.** Tell us what you're building, figuring out, or curious about today.
-2. **Say what you're up for.** Share what you can help with and any conversations you would rather
-   skip.
-3. **Get introduced together.** If you both want the conversation, Corgi introduces you at the same
-   time.
+1. **Choose a topic.** Pick a project, question, or idea worth talking through. (Topic chips shown:
+   Health, AI products, First customers, Fundraising, Career moves, SF life.)
+2. **See who's open.** Corgi looks for someone here who chose a compatible conversation.
+3. **Meet at Corgi.** When both people are interested, we'll make the introduction.
 
 ### 4.3 Example introduction
 
-**Eyebrow:** Skip the cold approach
+**Eyebrow:** An intro at Corgi
 
-**Headline:** A real reason to say hello.
-
-**Setup:** You are building a developer tool and want to talk through early sales. Maya is at Corgi
-too. She has been through the same shift and is open to comparing notes now.
+**Headline (rotating):** Let Corgi connect you with your next co-founder. / bestie. / investor. / hire.
 
 **Example card:**
 
-- Status: You're both up for this
-- Person: Maya, an early GTM operator
-- Reason: Maya has helped two developer-tool teams move past founder-led sales. You can compare what
-  changed, what did not, and what you're seeing with early customers.
-- Starting point: What changed when founder-led sales stopped scaling?
-- Controls: Meet now; Skip
+- Status: TRUDY IS OPEN NOW · At Corgi
+- Person: Trudy · GTM operator — Developer tools
+- Reason: Trudy has helped two developer-tool teams move beyond founder-led sales and is open to
+  comparing notes.
+- Conversation starter: What are you building?
 
 The example is fictional and contains no member data.
 
-### 4.4 Ground rules
+### 4.4 Community code
 
-**Headline:** No awkward surprises.
+**Eyebrow:** Community code
 
-**Supporting copy:** Corgi only makes an intro when both people want that kind of conversation. You
-can always skip without turning it into a thing.
+**Headline:** Comfort comes first.
 
-- **No cold approaches.** You only meet when you are both open to that kind of conversation.
-- **No surprise pitches.** Sales, recruiting, fundraising, and hiring talk only happen when both
-  people say yes.
-- **No forced introduction.** If no one is available, stay open while you're here or try another
-  visit.
-- **No public directory.** A profile does not create followers, messages, or permission to contact
-  someone.
-- **Skip without the speech.** Corgi does not say who skipped or why. A person can also pause, block,
-  or report.
+**Supporting copy:** Every introduction starts with two yeses.
+
+- **Mutual.** Both people choose the conversation. No fit means no intro.
+- **Pitch-free.** Sales, recruiting, and fundraising stay off unless invited.
+- **Private.** Profiles stay within Corgi Community.
+- **Easy exits.** Skip, pause, block, or report anytime.
 
 ### 4.5 Final invitation
 
-**Eyebrow:** Still here?
+**Eyebrow:** At Corgi today
 
-**Headline:** Open to meeting someone?
+**Headline:** See who's open to talk.
 
-**Supporting copy:** Tell us what you'd like to talk about. We'll make an intro only when you both
-want it.
+**Supporting copy:** A good conversation could be one table away.
 
 **CTA:** Start a chat
 

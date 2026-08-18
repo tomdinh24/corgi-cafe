@@ -17,6 +17,7 @@ The working product record, most-authoritative first.
 | [03-landing-page-handoff.md](product/03-landing-page-handoff.md) | Marketing + experience handoff for discovery after ordering. |
 | [04-implementation-handoff.md](product/04-implementation-handoff.md) | What the shipped Exa app (`corgi_cafe_app`) actually implements. |
 | [05-data-schema.md](product/05-data-schema.md) | Data dictionary: where each UI field lands and why. Column-level truth lives in `supabase/migrations/`. |
+| [06-decisions.md](product/06-decisions.md) | Decisions and trade-offs log: why the product is shaped this way, and what was deferred. |
 
 ## Standards (`docs/`)
 
