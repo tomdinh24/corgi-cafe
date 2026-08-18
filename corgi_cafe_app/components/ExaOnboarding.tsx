@@ -795,7 +795,7 @@ export function ExaOnboarding() {
                   <span className="match-card-resume" aria-hidden="true">Resume →</span>
                 </button>}
                 {confirmedCards.map((m) => <button key={m.recommendationId} type="button" className="match-card" onClick={() => setOpenMatch(m)}>
-                  <span className="match-card-avatar" aria-hidden="true">{isRealPhoto(m.avatarUrl) ? <img className="avatar-img" src={m.avatarUrl} alt="" /> : initialsFor(m.firstName, m.lastName)}</span>
+                  <span className="match-card-avatar" aria-hidden="true">{m.bothMet && isRealPhoto(m.avatarUrl) ? <img className="avatar-img" src={m.avatarUrl} alt="" /> : initialsFor(m.firstName, m.lastName)}</span>
                   <span className="match-card-text"><strong>{m.firstName}{m.lastName ? ` ${m.lastName}` : ""}</strong><small>{[m.roleTitle, m.company].filter(Boolean).join(" · ") || "Corgi match"}</small></span>
                   {m.bothMet && <span className="match-card-badge">Met</span>}
                 </button>)}
@@ -805,7 +805,7 @@ export function ExaOnboarding() {
       {openMatch && <div className="match-modal" role="dialog" aria-modal="true" aria-labelledby="match-modal-title" onClick={() => setOpenMatch(null)}>
         <div className="match-modal-card" onClick={(e) => e.stopPropagation()}>
           <button type="button" className="match-modal-close" aria-label="Close" onClick={() => setOpenMatch(null)}>×</button>
-          <span className="match-modal-avatar" aria-hidden="true">{isRealPhoto(openMatch.avatarUrl) ? <img className="avatar-img" src={openMatch.avatarUrl} alt="" /> : initialsFor(openMatch.firstName, openMatch.lastName)}</span>
+          <span className="match-modal-avatar" aria-hidden="true">{openMatch.bothMet && isRealPhoto(openMatch.avatarUrl) ? <img className="avatar-img" src={openMatch.avatarUrl} alt="" /> : initialsFor(openMatch.firstName, openMatch.lastName)}</span>
           <h2 id="match-modal-title">{openMatch.firstName}{openMatch.lastName ? ` ${openMatch.lastName}` : ""}</h2>
           {(openMatch.roleTitle || openMatch.company) && <p className="match-modal-role">{[openMatch.roleTitle, openMatch.company].filter(Boolean).join(" · ")}</p>}
           {matchedOn(openMatch.matchedAt) && <p className="match-modal-date">Matched {matchedOn(openMatch.matchedAt)}</p>}
