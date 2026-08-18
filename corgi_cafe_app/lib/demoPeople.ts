@@ -32,6 +32,10 @@ export type DemoPerson = {
   topics: string[];
   useful: string;
   offer: string;
+  // Profile photo, revealed on the home match card/popup only AFTER both confirm they met (same gate
+  // as socials — see list_my_confirmed_matches). Placeholder headshot for the demo; swap for the real
+  // photo URL when available. Never scrape it from LinkedIn (see project instructions).
+  avatarUrl?: string;
   // Public links attached to the seeded profile (LinkedIn is the enrichment anchor — see build step).
   sources: { kind: DemoSourceKind; url: string }[];
   enrichment?: DemoEnrichment;
@@ -53,6 +57,7 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     topics: ["Product & technology", "AI & products", "Career stories"],
     useful: "Notes on consumer crypto/fintech product, and breaking into PM from a technical / ML background",
     offer: "Product strategy for fintech/crypto, PM career advice (especially from a data-science start), and intros around the Coinbase orbit",
+    avatarUrl: "https://i.pravatar.cc/240?u=richard.zhang@corgi.demo",
     sources: [{ kind: "linkedin_identifier", url: "https://www.linkedin.com/in/richardzhangxyz" }],
     // Anchored on Richard's confirmed LinkedIn (linkedin.com/in/richardzhangxyz) via Exa people-search.
     enrichment: {
@@ -82,6 +87,7 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     topics: ["First customers", "Building community", "Product & technology"],
     useful: "GTM, growth, and strategy playbooks for consumer brands — and comparing notes on the founder path",
     offer: "Go-to-market strategy, early-customer acquisition, DTC growth, standing up a GTM function from scratch, and a founder’s perspective",
+    avatarUrl: "https://i.pravatar.cc/240?u=justin.ruiz@corgi.demo",
     sources: [
       { kind: "linkedin_identifier", url: "https://www.linkedin.com/in/justinruiz1" },
       { kind: "website", url: "https://atoms.co" },

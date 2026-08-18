@@ -57,6 +57,8 @@ export async function seedDemoPeople(admin: SupabaseClient, boundaries: Boundari
       current_work: person.currentWork,
       favorite_drink: person.drink,
       enrichment: person.enrichment ?? {},
+      // Only written when the person has one, so a manual photo change isn't clobbered on re-seed.
+      ...(person.avatarUrl ? { avatar_url: person.avatarUrl } : {}),
       confirmed_at: now,
     });
 
