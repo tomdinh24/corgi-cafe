@@ -4,6 +4,41 @@ import { createCorgiServerClient, getSupabaseConfig } from "../../../lib/supabas
 const MEDIA_KIND: Record<string, string> = { self: "self_and_outfit", nearby: "nearby_view" };
 const MAX_BYTES = 5 * 1024 * 1024;
 
+// Returns the COUNTERPART's two recognition photos (self+outfit, nearby view) as short-lived signed
+// URLs so the find-each-other screen can actually show them. The recognition-media bucket is private;
+// RLS (recognition_pair_select / recognition_storage_pair_select) already lets a participant who chose
+// "continue" read the other side's rows and objects during the live, unexpired introduction — so the
+// cookie-scoped client is enough and a member outside the pair (or after expiry) simply gets nothing.
+export async function GET(request: Request) {
+  if (getSupabaseConfig().mode === "setup_required") {
+    return NextResponse.json({ status: "preview_only", self: null, nearby: null });
+  }
+  const recommendationId = new URL(request.url).searchParams.get("recommendationId");
+  if (!recommendationId) return NextResponse.json({ message: "Missing introduction." }, { status: 400 });
+
+  const supabase = await createCorgiServerClient();
+  const { data: auth, error: authError } = await supabase!.auth.getUser();
+  if (authError || !auth.user) return NextResponse.json({ message: "Sign in again." }, { status: 401 });
+
+  // The counterpart's rows only: my own participation + "continue" is enforced by RLS, and I already
+  // took my own photos. Rows the pair-select policy hides (not a participant, expired, deleted) are
+  // simply absent.
+  const { data: rows } = await supabase!
+    .from("recognition_media")
+    .select("media_kind,storage_path")
+    .eq("recommendation_id", recommendationId)
+    .neq("member_id", auth.user.id);
+
+  const out: { self: string | null; nearby: string | null } = { self: null, nearby: null };
+  for (const row of rows ?? []) {
+    const key = row.media_kind === "self_and_outfit" ? "self" : row.media_kind === "nearby_view" ? "nearby" : null;
+    if (!key) continue;
+    const { data: signed } = await supabase!.storage.from("recognition-media").createSignedUrl(row.storage_path as string, 3600);
+    if (signed?.signedUrl) out[key] = signed.signedUrl;
+  }
+  return NextResponse.json(out);
+}
+
 // Storage rejects any content type outside the bucket allow-list (jpeg/png/webp/heic/heif/gif).
 // Browsers sometimes hand us an empty or non-image file.type (notably iPhone HEIC captures and
 // some "Choose File" pickers), so normalise to a supported image type — preferring the reported

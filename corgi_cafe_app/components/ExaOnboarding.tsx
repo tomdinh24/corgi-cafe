@@ -218,6 +218,11 @@ export function ExaOnboarding() {
   // instant and avoids a signed-URL round-trip).
   const [photoSelfUrl, setPhotoSelfUrl] = useState("");
   const [photoNearbyUrl, setPhotoNearbyUrl] = useState("");
+  // The COUNTERPART's recognition photos (signed URLs), shown on the find-each-other screen so you can
+  // actually recognise them. Fetched when step 14 opens; empty until then and for demo counterparts,
+  // who upload no photos.
+  const [counterpartSelfUrl, setCounterpartSelfUrl] = useState("");
+  const [counterpartNearbyUrl, setCounterpartNearbyUrl] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState<"" | "self" | "nearby">("");
   const selfPhotoInputRef = useRef<HTMLInputElement>(null);
   const nearbyPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -436,6 +441,23 @@ export function ExaOnboarding() {
     const interval = setInterval(checkStatus, 5000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [step, sessionId, setup]);
+  // Find-each-other (14): pull the counterpart's recognition photos so the tiles show them, not a
+  // label. They may upload a moment after you arrive, so poll (bounded to ~2 min) and stop once both
+  // tiles are filled. loadRecognition fills each slot once and keeps it, so this never re-flickers.
+  useEffect(() => {
+    if (step !== 14) return;
+    let cancelled = false;
+    let tries = 0;
+    void loadRecognition();
+    const interval = setInterval(() => {
+      tries += 1;
+      if (cancelled || tries > 24) { clearInterval(interval); return; }
+      void loadRecognition();
+    }, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, recommendationId]);
+
   // The mirror of the pool poll: across the whole live-introduction sequence — the reveal (11), the
   // recognition photos (13), and find-each-other (14) — watch for the other person bailing. A decline
   // resets THIS member's own session back to 'searching' server-side (a lapsed window sets it to
@@ -448,6 +470,7 @@ export function ExaOnboarding() {
     const clearMatchState = () => {
       setRecommendationId(""); setCounterpart(null); setMatchExpiresAt(0);
       setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl("");
+      setCounterpartSelfUrl(""); setCounterpartNearbyUrl("");
     };
     const checkDeclined = async () => {
       try {
@@ -759,6 +782,18 @@ export function ExaOnboarding() {
       setPostLinks(Array.isArray(result.links) ? result.links : []);
     } catch { setPostLinks([]); }
   };
+  // Pull the counterpart's recognition photos for the find-each-other screen. Best-effort: a demo
+  // counterpart (no photos) or a not-yet-uploaded side simply leaves the tiles as labelled placeholders.
+  const loadRecognition = async () => {
+    if (setup !== "configured" || !recommendationId) return;
+    try {
+      const result = await jsonGet(`/api/recognition?recommendationId=${recommendationId}`);
+      // Fill each tile once and keep it: the signed URL changes every fetch, so re-setting would
+      // reload the <img>. The counterpart may upload a moment later, so a poll fills the empty slot.
+      if (typeof result.self === "string" && result.self) setCounterpartSelfUrl((cur) => cur || result.self);
+      if (typeof result.nearby === "string" && result.nearby) setCounterpartNearbyUrl((cur) => cur || result.nearby);
+    } catch { /* keep placeholders */ }
+  };
 
   if (resuming) return <Shell step={0} hideProgress><div className="center"><div className="loader" aria-label="Checking your session"><i/><i/><i/></div></div></Shell>;
 
@@ -868,7 +903,7 @@ export function ExaOnboarding() {
   if (step === 10) return <Shell step={10}><div className="loader" aria-label="Finding someone"><i/><i/><i/></div><div className="center"><Header eyebrow="One moment" title="Corgi is finding someone worth meeting.">We’ll only make an introduction when the conversation looks promising.</Header><aside className="community-note"><strong>A quick community note</strong><span>Keep it conversational. No direct fundraising asks or recruiting.</span></aside></div></Shell>;
   if (step === 11) return <Shell step={11}><div className="intro-person"><div className="intro-symbol">{personInitial}</div><div className="intro-person-text"><Header eyebrow="A Corgi introduction" title={`Meet ${person.firstName}`}>{person.roleTitle}</Header></div></div>{matchExpiresAt ? <p className="match-window">{windowBucket(matchSecondsLeft) ? <>We’ll hold this intro for about <strong>{windowBucket(matchSecondsLeft)}</strong>. No rush, continue when you’re ready.</> : <>This intro just wrapped up. Head back and we’ll find you another.</>}</p> : null}<div className="meet-reason"><span>Why you should meet</span><strong>{person.reason}</strong></div><p className="privacy-line">Based only on details you both confirmed.</p><Actions><Primary onClick={async () => { setMatchExpiresAt(0); record("introduction_continue"); await saveDecision("continue"); go(13); }}>Continue</Primary><Quiet onClick={() => { setMatchExpiresAt(0); record("introduction_passed"); saveDecision("pass"); setTerminal("pass"); }}>Not now</Quiet></Actions></Shell>;
   if (step === 13) return <Shell step={13} wide><Header eyebrow={`Help ${person.firstName} spot you`} title="Add two quick photos"/><div className="capture-grid"><article><button type="button" className={`capture-image ${photoSelf ? "taken" : ""}`} style={photoSelfUrl ? { backgroundImage: `url(${photoSelfUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} disabled={uploadingPhoto !== ""} onClick={() => selfPhotoInputRef.current?.click()}>{photoSelfUrl ? "" : uploadingPhoto === "self" ? "…" : "+"}</button><input ref={selfPhotoInputRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => uploadRecognitionPhoto("self", e.target.files?.[0])} /><strong>You + what you’re wearing</strong><small>{photoSelf ? "Photo added" : uploadingPhoto === "self" ? "Uploading…" : "Photo needed"}</small></article><article><button type="button" className={`capture-image nearby ${photoNearby ? "taken" : ""}`} style={photoNearbyUrl ? { backgroundImage: `url(${photoNearbyUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} disabled={uploadingPhoto !== ""} onClick={() => nearbyPhotoInputRef.current?.click()}>{photoNearbyUrl ? "" : uploadingPhoto === "nearby" ? "…" : "+"}</button><input ref={nearbyPhotoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => uploadRecognitionPhoto("nearby", e.target.files?.[0])} /><strong>What you can see nearby</strong><small>{photoNearby ? "Photo added" : uploadingPhoto === "nearby" ? "Uploading…" : "Photo needed"}</small></article></div>{error && <p className="journey-error">{error}</p>}<p className="pair-note">Only {person.firstName} can see these, and only once you both confirm you met. They’re deleted automatically afterward.</p><Actions><Primary disabled={!photoSelf || !photoNearby} onClick={() => go(14)}>Share with {person.firstName}</Primary></Actions></Shell>;
-  if (step === 14) { const bucket = windowBucket(meetingSecondsLeft); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer">{bucket ? <><strong>~{bucket}</strong><span>left</span></> : <><strong>No rush</strong><span>take your time</span></>}</div></div><div className="recognition-demo"><div>{person.firstName} + outfit</div><div>Nearby Cafe view</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); if (mode === "demo") { try { await jsonPost("/api/demo/confirm-meeting", { recommendationId }); } catch { /* links stay pending */ } } await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
+  if (step === 14) { const bucket = windowBucket(meetingSecondsLeft); return <Shell step={14}><div className="find-heading"><div className="intro-symbol small">{personInitial}</div><div><p className="journey-eyebrow">Find each other</p><h1>{person.firstName}</h1></div><div className="timer">{bucket ? <><strong>~{bucket}</strong><span>left</span></> : <><strong>No rush</strong><span>take your time</span></>}</div></div><div className="recognition-demo"><div style={counterpartSelfUrl ? { backgroundImage: `url(${counterpartSelfUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>{counterpartSelfUrl ? "" : `${person.firstName} + outfit`}</div><div style={counterpartNearbyUrl ? { backgroundImage: `url(${counterpartNearbyUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>{counterpartNearbyUrl ? "" : "Nearby Cafe view"}</div></div><section className="confirm-block"><h2>Did you meet {person.firstName} in person?</h2><Actions><Primary onClick={async () => { record("meeting_confirmed"); await saveMeeting("met"); if (mode === "demo") { try { await jsonPost("/api/demo/confirm-meeting", { recommendationId }); } catch { /* links stay pending */ } } await loadLinks(); go(15); }}>Yes, we met</Primary><Secondary onClick={() => { record("meeting_not_yet"); saveMeeting("not_yet"); setTerminal("not_met"); }}>Not yet</Secondary></Actions><small>Your answer stays private. A meeting counts only after you both confirm.</small></section></Shell>; }
   if (step === 15) return <Shell step={15}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow="Both confirmed" title={`You met ${person.firstName}`}/><div className="approved-links">{postLinks.length > 0 ? postLinks.map((link, index) => link.url.startsWith("http") ? <a key={index} className="approved-link" href={link.url} target="_blank" rel="noopener noreferrer">{socialLabel(link.kind)}</a> : <span key={index} className="approved-link">{socialLabel(link.kind)}: {link.host || link.url}</span>) : <span className="pending-links">Approved links appear here once {person.firstName} also confirms you met.</span>}</div><p className="helper-text">Only links {person.firstName} approved for after an in-person meeting.</p><Actions><Primary onClick={() => go(16)}>Continue</Primary></Actions></div></Shell>;
   if (step === 16) return <Shell step={16}><Header eyebrow="Private · optional" title="How was the conversation?"/><div className="feedback-options">{([['very_unhelpful','😞','Not useful'],['unhelpful','🙁','Not really'],['neutral','😐','Okay'],['helpful','🙂','Useful'],['very_helpful','😄','Very useful']] as const).map(([value,emoji,label]) => <button key={value} className={feedback === value ? "selected" : ""} aria-pressed={feedback === value} aria-label={label} title={label} onClick={() => { setFeedback(value); record("conversation_feedback", { rating: value }); saveFeedback(value, feedbackNote); }}><span aria-hidden="true">{emoji}</span></button>)}</div><div className="feedback-note"><TextBox label="Add a note (optional)" value={feedbackNote} maxLength={600} placeholder="What made it useful, or not? Only you and Corgi see this." onChange={(e) => setFeedbackNote(e.target.value)} /></div><section className="what-next"><h2>What next?</h2><Actions><Primary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("meet_another_selected"); setFeedback(""); setFeedbackNote(""); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); goMeetSomeone(); }}>Meet another person</Primary><Secondary onClick={() => { if (feedback) saveFeedback(feedback, feedbackNote); record("intro_session_finished"); void finishSession(); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); setTerminal("finished"); }}>Finish for today</Secondary></Actions></section><p className="retention-note">Temporary photo access ends when this introduction closes; deletion is due promptly under the configured retention job.</p></Shell>;
   // "Still looking" pool. No push/email notification exists, so this is a live waiting screen: a
