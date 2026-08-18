@@ -306,6 +306,10 @@ export function ExaOnboarding() {
         setAvatarUrl(r.profile.avatarUrl);
       }
       setLinks(r.links);
+      // Returning onboarded member: refresh enrichment if it predates the current pipeline version.
+      // Version-guarded and rate-limited server-side, so a profile that is already current is a cheap
+      // no-op (no model call, no write); fire-and-forget, never blocks the hub.
+      if (r.profile?.confirmed) void fetch("/api/enrich", { method: "POST" }).catch(() => {});
       if (r.sessionId) { setSessionId(r.sessionId); setSessionIsDemo(r.sessionIsDemo); }
       if (r.recommendationId) setRecommendationId(r.recommendationId);
       if (r.matchExpiresAt) setMatchExpiresAt(r.matchExpiresAt);
