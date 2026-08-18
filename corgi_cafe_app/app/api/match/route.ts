@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   // Rank the queue with a model when possible; degrade silently to the deterministic RPC otherwise.
   let chosenTargetSessionId: string | null = null;
   let overrideExplanation: string | null = null;
+  let counterpartExplanation: string | null = null;
   try {
     const admin = createCorgiAdminClient();
     if (admin) {
@@ -50,6 +51,16 @@ export async function POST(request: Request) {
         if (ranked) {
           chosenTargetSessionId = ranked.sessionId;
           overrideExplanation = ranked.reason || null;
+          // The stored reason is directional (about the counterpart, addressed to the requester), so
+          // the counterpart would otherwise be shown a description of themselves. Rank the reverse
+          // direction too — same grounding and company-name rules — so each side sees a reason about
+          // the OTHER person. A null result (below-threshold / model unavailable) simply lets the RPC
+          // build the deterministic mirror.
+          const counterpartBlob = candidates.find((c) => c.sessionId === ranked.sessionId);
+          if (counterpartBlob) {
+            const reverse = await rankBestMatch(counterpartBlob, [requester]);
+            counterpartExplanation = reverse?.reason || null;
+          }
         }
       }
     }
@@ -61,6 +72,7 @@ export async function POST(request: Request) {
     target_session_id: sessionId,
     chosen_target_session_id: chosenTargetSessionId,
     override_explanation: overrideExplanation,
+    counterpart_override_explanation: counterpartExplanation,
   });
   if (error) return NextResponse.json({ message: "Matching is unavailable right now." }, { status: 502 });
   if (!data) return NextResponse.json({ status: "no_match" });
