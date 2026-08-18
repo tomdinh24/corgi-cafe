@@ -2,7 +2,10 @@
 
 **What this is:** the definition of every piece of data the community-activation platform stores, where each UI input lands, its type, and *why* we keep it. This is the contract for the Supabase Postgres database.
 
-**Source of truth in code** — the full migration set in `supabase/migrations/` (applied in order):
+**Source of truth in code** — the full migration set in `supabase/migrations/` (applied in order). The
+tables + RLS in the dictionary below are defined by `202608160001`–`0002`; every later migration extends
+behavior (new security-definer RPCs, a few added columns), summarized inline here and authoritative in
+each file:
 - `202608160001_corgi_community_core.sql` — core schema, RLS, privacy RPCs, storage bucket.
 - `202608160002_matching_service.sql` — the matcher (`request_introduction`).
 - `202608170001_no_repeat_matches_and_feedback_scale.sql` — no-repeat rule + 5-point feedback scale.
@@ -13,8 +16,10 @@
 - `202608180006_profile_enrichment.sql` — derived career-context enrichment on `profiles`.
 - `202608180007_match_preferences.sql` — per-member match preferences.
 - `202608190001_profile_avatars.sql` — `profiles.avatar_url` + public `avatars` bucket.
-
-The core dictionary below reflects `0001`–`0002`; the later migrations extend it (rematch, LLM matching, enrichment, match preferences, avatars) — check each migration for the exact columns it adds.
+- `202608190002_decline_frees_counterpart.sql` / `202608190003_fix_decline_status_cast.sql` — `decline_introduction` RPC: a pass sets the recommendation to `ended`, retires the decliner's session, and re-pools the counterpart's so they aren't stranded.
+- `202608190004_daily_no_repeat.sql` — `declined_within_a_day`: only a pair whose introduction was *declined* is blocked for 24h; a plain page refresh (no decline) still allows a re-recommendation.
+- `202608190005_list_confirmed_matches.sql` / `202608190006_confirmed_or_met.sql` / `202608190007_confirmed_socials_include_linkedin.sql` — `list_my_confirmed_matches` RPC behind the home dashboard: a match appears once both accepted (`continue`) **or** both confirmed they met; shareable links (incl. the LinkedIn identifier) are attached only after both met.
+- `202608190008_avatar_after_meeting.sql` — the counterpart's `avatar_url` is returned only after both confirm they met (same mutual-permission gate as links).
 
 ## Storage principles (why the shape is what it is)
 
@@ -39,6 +44,7 @@ The core dictionary below reflects `0001`–`0002`; the later migrations extend 
 | About me | `profiles.about_me` | text (≤800) | Conversation starter on the profile. |
 | What are you working on | `profiles.current_work` | text (≤280) | Shown in an introduction ("what they're working on"). |
 | Favorite drink at Corgi | `profiles.favorite_drink` | text | Light, human icebreaker. |
+| Profile photo (upload or accepted candidate) | `profiles.avatar_url` + public `avatars` bucket | text/object | Shown to a confirmed match **only after both confirm they met**. |
 | Public links (website/github/social) | `profile_sources` (kind, url, host) | rows | Optional profile enrichment the member confirmed. |
 | LinkedIn URL | `profile_sources` with `identifier_only=true` | row | Kept only as an identifier; never fetched. |
 | Exa-selected profile | `profile_sources.source_kind='exa_candidate'` | row | Provenance of any auto-filled facts the member accepted. |
@@ -60,7 +66,7 @@ The core dictionary below reflects `0001`–`0002`; the later migrations extend 
 ## Table dictionary (types + purpose)
 
 - **`members`** — one row per authenticated person (`id` = `auth.users.id`). Email, display name. Auto-created by trigger on signup.
-- **`profiles`** — the member-confirmed public profile (names, role, company, about, current work, drink). 1:1 with member.
+- **`profiles`** — the member-confirmed public profile (names, role, company, about, current work, drink, `avatar_url`, derived `enrichment`). 1:1 with member.
 - **`profile_sources`** — links/sources attached to a profile, each with `identifier_only` (LinkedIn) and `share_after_meeting` (only revealed post-meeting) flags.
 - **`onboarding_progress`** — funnel state machine (`started→identity→sources→profile→complete`) + a `draft` jsonb for resume.
 - **`community_interests`** — soft interest in the private community (separate from membership).
@@ -80,6 +86,7 @@ The core dictionary below reflects `0001`–`0002`; the later migrations extend 
 | A recommendation you're part of | Both participants can see the row's existence + explanation. |
 | The counterpart's **name/role/current work/reason** | Only via `get_introduction_counterpart(rec_id)`, only once `status ∈ (introduced, locating, met, completed)`, only for the two participants. |
 | The counterpart's **shareable links** | Only via `get_post_meeting_links(rec_id)`, only after **both** confirm `met`. |
+| Your **confirmed matches** (home dashboard) | Only via `list_my_confirmed_matches()`, for your own introductions; the counterpart's photo and shareable links are attached only after **both** confirm `met`. |
 | Recognition photos | Only the paired counterpart, only while not expired/deleted, only if both chose `continue`. |
 | Creating a match | **Nobody via the client.** Only the `request_introduction` RPC (reviewed, security-definer). |
 

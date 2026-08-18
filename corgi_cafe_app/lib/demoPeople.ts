@@ -3,9 +3,9 @@
 // DEMO_CAFE_CODE) and never appear in Live pools.
 //
 // `enrichment` is the same jsonb blob the enrichment pipeline (app/api/enrich) produces and the
-// matcher reads as `background`. It is baked in here from an anchored Exa lookup (see
-// scripts/seed-demo-pool.mjs / the enrichment build step) so the LLM ranker can write a specific,
-// grounded "why you two". Keep it optional so a person can be seeded before enrichment is filled in.
+// matcher reads as `background`. It is baked in here from an anchored Exa lookup (the enrichment
+// build step) so the LLM ranker can write a specific, grounded "why you two". Keep it optional so a
+// person can be seeded before enrichment is filled in.
 
 export type DemoEnrichment = {
   headline?: string;
