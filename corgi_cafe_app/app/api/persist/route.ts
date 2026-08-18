@@ -99,12 +99,10 @@ export async function POST(request: Request) {
   }
 
   if (data.kind === "finish_session") {
-    // "Finish for today" — retire the caller's active session so the home dashboard stops showing it
-    // as an introduction in progress. RLS scopes the update to the member's own rows.
-    const { error } = await supabase!.from("visit_intro_sessions")
-      .update({ status: "completed" })
-      .eq("member_id", memberId)
-      .in("status", ["draft", "searching", "waiting", "introduced", "meeting"]);
+    // "Finish for today" — the security-definer RPC ends any live, not-yet-met introduction so the
+    // counterpart is freed back to the pool instead of stranded, then retires the caller's own active
+    // sessions. A match both sides already met is left intact so it stays on the dashboard.
+    const { error } = await supabase!.rpc("finish_my_visit");
     return error ? NextResponse.json({ message: "Could not close your session." }, { status: 502 }) : NextResponse.json({ status: "saved" });
   }
 
