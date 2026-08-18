@@ -50,9 +50,6 @@ npm install
 npm run dev          # http://localhost:4313
 ```
 
-With Supabase configured, sign up or sign in with email and a password (or Google). Without Supabase,
-use `424242` in preview mode. Refreshing the page clears the in-memory draft.
-
 ## Verify
 
 ```bash
