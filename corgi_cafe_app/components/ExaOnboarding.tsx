@@ -31,6 +31,32 @@ function windowBucket(secondsLeft: number): string {
 
 type Counterpart = { firstName: string; roleTitle: string; currentWork: string; reason: string };
 type PostLink = { kind: string; url: string; host: string };
+// One confirmed match on the home dashboard — a MATCH (keyed by recommendation id), carrying only the
+// counterpart's minimal card fields. socials are populated by the server ONLY once both sides met.
+type ConfirmedMatch = {
+  recommendationId: string;
+  status: string;
+  matchedAt: string | null;
+  firstName: string;
+  lastName: string | null;
+  roleTitle: string | null;
+  company: string | null;
+  currentWork: string | null;
+  avatarUrl: string | null;
+  bothMet: boolean;
+  socials: PostLink[];
+};
+
+// Label a stored source_kind for display in the match popup.
+function socialLabel(kind: string): string {
+  return kind === "linkedin_identifier" ? "LinkedIn" : kind === "github" ? "GitHub" : kind === "website" ? "Website" : kind === "social" ? "Social" : "Link";
+}
+// "Aug 17, 2026" for the "met" line; tolerant of a null/invalid timestamp.
+function matchedOn(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 
 // Shown only when no database is connected (preview mode), so the flow stays demoable without
 // Supabase. When configured, every field below comes from the real matcher + RPCs instead.
@@ -211,6 +237,14 @@ export function ExaOnboarding() {
   // Back button and the "Done" button both land back on /home instead of exiting to the landing
   // page. Deriving the view from the path keeps the URL the single source of truth.
   const accountView = pathname === "/account";
+  // The home dashboard is a path-owned view like /account: whenever a signed-in, onboarded member is
+  // on /home, it renders the confirmed-matches hub regardless of the flow's step. Entering the live
+  // flow happens by explicit navigation to /start; /home is the resting hub.
+  const signedIn = authMode !== "checking" && authMode !== "preview";
+  const homeView = pathname === "/home" && signedIn && step >= 7;
+  const [matches, setMatches] = useState<ConfirmedMatch[]>([]);
+  const [matchesLoaded, setMatchesLoaded] = useState(false);
+  const [openMatch, setOpenMatch] = useState<ConfirmedMatch | null>(null);
   const [accountNotice, setAccountNotice] = useState("");
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -320,16 +354,28 @@ export function ExaOnboarding() {
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [accountMenuOpen]);
+  // Load the member's confirmed matches each time the home dashboard opens (re-fetched on every
+  // entry so a match confirmed since the last visit shows up without a hard reload).
+  useEffect(() => {
+    if (!homeView) { setMatchesLoaded(false); return; }
+    let cancelled = false;
+    jsonGet("/api/introductions")
+      .then((d) => { if (!cancelled) { setMatches(Array.isArray(d.matches) ? d.matches : []); setMatchesLoaded(true); } })
+      .catch(() => { if (!cancelled) setMatchesLoaded(true); });
+    return () => { cancelled = true; };
+  }, [homeView]);
   useEffect(() => {
     if (resuming) return;
-    // Account settings is a pushed history entry that owns its own URL — never replace it away,
-    // or Back/Done would be undone the moment this effect re-runs.
+    // Account settings and the home dashboard each own their own URL — never replace them away, or
+    // Back/Done (account) and the resting hub (home) would be undone the moment this effect re-runs.
     if (pathname === "/account") return;
-    // Keep the address bar in sync with the section of the flow: auth (sign-up/sign-in),
-    // onboarding (profile creation), and home (everything after the profile is claimed).
-    const section = terminal ? "/home" : step <= 1 ? (authIntent === "signin" ? "/sign-in" : "/sign-up") : step <= 6 ? "/onboarding" : "/home";
+    if (homeView) return;
+    // Keep the address bar in sync with the section of the flow: auth (sign-up/sign-in), onboarding
+    // (profile creation), and the live flow at /start (chooser through match, still-looking, meeting).
+    // A terminal outcome lands back on the /home dashboard.
+    const section = terminal ? "/home" : step <= 1 ? (authIntent === "signin" ? "/sign-in" : "/sign-up") : step <= 6 ? "/onboarding" : "/start";
     if (pathname !== section) router.replace(section, { scroll: false });
-  }, [step, terminal, authIntent, resuming, pathname, router]);
+  }, [step, terminal, authIntent, resuming, pathname, router, homeView]);
   useEffect(() => {
     const heading = document.querySelector<HTMLElement>(".journey-screen h1");
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
@@ -422,6 +468,13 @@ export function ExaOnboarding() {
   // location check is on. With the check on, always route through the presence screen (step 8) so a
   // cafe is resolved before a session starts; with it off, skip straight to choosing a conversation.
   const goMeetSomeone = () => go(mode === "demo" ? 9 : locationCheck ? 8 : 9);
+  // From the home dashboard into the live flow at /start. Both shallow-route via pushState (like
+  // openAccount) so the component isn't remounted: usePathname flips to "/start", homeView turns off,
+  // and the current step decides what renders — with a real history entry so Back returns to /home.
+  // "Start a chat" forces the chooser (step 7 = "What would you like to do next?"); "Resume" keeps the
+  // resumed step (11 match / 18 still-looking) so the member drops straight back in.
+  const startChat = () => { setOpenMatch(null); setTerminal(""); go(7); window.history.pushState(null, "", "/start"); };
+  const resumeFlow = () => { setOpenMatch(null); window.history.pushState(null, "", "/start"); };
   // Resolve which Corgi Cafe the visitor is standing in from the browser's coordinates.
   const useMyLocation = () => {
     setLocationError("");
@@ -698,6 +751,54 @@ export function ExaOnboarding() {
   if (terminal) {
     const content = terminal === "community" ? ["Interest recorded", "You’re on the list.", setup === "configured" ? "Corgi recorded your interest in the private community. Membership and access are separate." : "This preview did not save your interest because Supabase is not connected."] : terminal === "later" ? ["Come back anytime", "Your profile is ready.", setup === "configured" ? "Your confirmed profile is saved. Start an intro session during another Cafe visit." : "This preview did not save a profile because Supabase is not connected."] : terminal === "pass" ? ["Introduction skipped", "No worries.", "Want to chat with someone else, or are you good for today?"] : terminal === "not_met" ? ["Couldn’t meet this time", "Nothing was recorded.", "Links stay private and temporary photos are removed promptly."] : ["All set", "Thanks for showing up.", "Your private feedback helps Corgi make future introductions more useful."];
     return <Shell step={12}><div className="center"><div className="terminal-mark">✓</div><Header eyebrow={content[0]} title={content[1]}>{content[2]}</Header>{terminal === "pass" ? <Actions><Primary onClick={() => { record("meet_another_after_pass"); setRecommendationId(""); setCounterpart(null); setSessionId(""); setMatchExpiresAt(0); setPostLinks([]); setPhotoSelf(false); setPhotoNearby(false); setPhotoSelfUrl(""); setPhotoNearbyUrl(""); setTerminal(""); goMeetSomeone(); }}>Start new chat</Primary><Secondary onClick={() => { record("pass_session_finished"); setTerminal("finished"); }}>Maybe later</Secondary></Actions> : <Actions><Primary onClick={() => { setTerminal(""); go(7); }}>Back to Corgi</Primary></Actions>}</div></Shell>;
+  }
+
+  // Home dashboard — the resting hub for a signed-in, onboarded member. Shows an in-progress session
+  // (if any) with Resume, the grid of confirmed matches, and a "Start a chat" CTA into /start. Clicking
+  // a match opens a small centered popup with that person's details (socials only after both met).
+  if (homeView) {
+    const visibleMatches = matches.filter((m) => m.recommendationId !== recommendationId);
+    const initialsFor = (first: string, last: string | null) => `${(first[0] ?? "").toUpperCase()}${(last?.[0] ?? "").toUpperCase()}` || "?";
+    return <Shell step={7} wide>
+      <div className="dashboard">
+        <div className="dash-hero">
+          <span className="dash-you-avatar" aria-hidden="true">{isRealPhoto(avatarUrl) ? <img className="avatar-img" src={avatarUrl} alt="" /> : accountInitials}</span>
+          <div><p className="journey-eyebrow">Welcome back</p><h1>{firstName || "Your Corgi home"}</h1></div>
+        </div>
+        {sessionId && <button type="button" className="dash-active" onClick={resumeFlow}>
+          <span className="dash-active-dot" aria-hidden="true" />
+          <span className="dash-active-text">
+            <strong>{recommendationId ? `Introduction in progress${counterpart?.firstName ? ` with ${counterpart.firstName}` : ""}` : "You’re still looking"}</strong>
+            <small>{recommendationId ? "Pick up where you left off." : "Corgi is still finding someone worth meeting."}</small>
+          </span>
+          <span className="dash-active-cta" aria-hidden="true">Resume →</span>
+        </button>}
+        <section className="dash-section">
+          <div className="dash-section-head"><h2>Your matches</h2><button type="button" className="journey-button primary dash-start" onClick={startChat}>Start a chat</button></div>
+          {!matchesLoaded ? <div className="loader" aria-label="Loading your matches"><i/><i/><i/></div>
+            : visibleMatches.length === 0 ? <p className="dash-empty">No matches yet. Start a chat to meet someone worth talking to at Corgi.</p>
+            : <div className="matches-grid">{visibleMatches.map((m) => <button key={m.recommendationId} type="button" className="match-card" onClick={() => setOpenMatch(m)}>
+                <span className="match-card-avatar" aria-hidden="true">{isRealPhoto(m.avatarUrl) ? <img className="avatar-img" src={m.avatarUrl} alt="" /> : initialsFor(m.firstName, m.lastName)}</span>
+                <span className="match-card-text"><strong>{m.firstName}{m.lastName ? ` ${m.lastName}` : ""}</strong><small>{[m.roleTitle, m.company].filter(Boolean).join(" · ") || "Corgi match"}</small></span>
+                {m.bothMet && <span className="match-card-badge">Met</span>}
+              </button>)}</div>}
+        </section>
+      </div>
+      {openMatch && <div className="match-modal" role="dialog" aria-modal="true" aria-labelledby="match-modal-title" onClick={() => setOpenMatch(null)}>
+        <div className="match-modal-card" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="match-modal-close" aria-label="Close" onClick={() => setOpenMatch(null)}>×</button>
+          <span className="match-modal-avatar" aria-hidden="true">{isRealPhoto(openMatch.avatarUrl) ? <img className="avatar-img" src={openMatch.avatarUrl} alt="" /> : initialsFor(openMatch.firstName, openMatch.lastName)}</span>
+          <h2 id="match-modal-title">{openMatch.firstName}{openMatch.lastName ? ` ${openMatch.lastName}` : ""}</h2>
+          {(openMatch.roleTitle || openMatch.company) && <p className="match-modal-role">{[openMatch.roleTitle, openMatch.company].filter(Boolean).join(" · ")}</p>}
+          {matchedOn(openMatch.matchedAt) && <p className="match-modal-date">Matched {matchedOn(openMatch.matchedAt)}</p>}
+          {openMatch.bothMet
+            ? (openMatch.socials.length > 0
+                ? <div className="match-modal-socials">{openMatch.socials.map((s, i) => s.url.startsWith("http") ? <a key={i} href={s.url} target="_blank" rel="noopener noreferrer">{socialLabel(s.kind)}</a> : <span key={i}>{socialLabel(s.kind)}: {s.host || s.url}</span>)}</div>
+                : <p className="match-modal-note">No shared links.</p>)
+            : <p className="match-modal-note">Socials appear here once you both confirm you met.</p>}
+        </div>
+      </div>}
+    </Shell>;
   }
 
   if (step === 0) {
