@@ -82,6 +82,9 @@
 .landing-brand > span {
   padding-left: 14px;
   border-left: 1px solid var(--color-border-subtle);
+  /* Rounded, warm display face so the "Community" sub-wordmark reads as the same brand family as the
+     rounded orange "Corgi" logo instead of a cold, generic label. Same treatment app-side (journey.css). */
+  font-family: var(--font-brand), sans-serif;
   color: var(--color-ink-muted);
   font-size: 14px;
   white-space: nowrap;
@@ -1359,7 +1362,7 @@
 .landing-version-a .landing-shell,
 .landing-version-a .landing-header-inner { width: min(100% - 40px, 1200px); }
 .landing-version-a .landing-header-inner { min-height: 64px; }
-.landing-version-a .landing-brand > span { color: var(--color-ink-muted); font-size: 17px; font-weight: 500; }
+.landing-version-a .landing-brand > span { color: #2a2a27; font-size: 18px; font-weight: 600; letter-spacing: -.005em; }
 .landing-version-a .cafe-chip { display: inline-flex; }
 .landing-version-a .landing-hero { background: radial-gradient(circle at 90% 5%, rgb(255 92 0 / 12%), transparent 30rem), var(--color-canvas); }
 .landing-version-a .landing-hero-grid { min-height: 680px; gap: 24px; padding-block: 96px; }
