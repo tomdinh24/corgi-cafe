@@ -37,6 +37,7 @@ type ConfirmedMatch = {
   recommendationId: string;
   status: string;
   matchedAt: string | null;
+  isDemo: boolean;
   firstName: string;
   lastName: string | null;
   roleTitle: string | null;
@@ -228,6 +229,9 @@ export function ExaOnboarding() {
   const [feedback, setFeedback] = useState<"" | "very_unhelpful" | "unhelpful" | "neutral" | "helpful" | "very_helpful">("");
   const [feedbackNote, setFeedbackNote] = useState("");
   const [sessionId, setSessionId] = useState(() => cached?.sessionId ?? "");
+  // Whether the active/resumed session is a Demo session, so the home dashboard keeps the in-progress
+  // card (and confirmed matches) separate from Live when the member switches modes.
+  const [sessionIsDemo, setSessionIsDemo] = useState(() => cached?.sessionIsDemo ?? false);
   const [recommendationId, setRecommendationId] = useState(() => cached?.recommendationId ?? "");
   const [counterpart, setCounterpart] = useState<Counterpart | null>(null);
   const [postLinks, setPostLinks] = useState<PostLink[]>([]);
@@ -302,7 +306,7 @@ export function ExaOnboarding() {
         setAvatarUrl(r.profile.avatarUrl);
       }
       setLinks(r.links);
-      if (r.sessionId) setSessionId(r.sessionId);
+      if (r.sessionId) { setSessionId(r.sessionId); setSessionIsDemo(r.sessionIsDemo); }
       if (r.recommendationId) setRecommendationId(r.recommendationId);
       if (r.matchExpiresAt) setMatchExpiresAt(r.matchExpiresAt);
       // Never clobber a step the visitor has already navigated to during the async window.
@@ -707,6 +711,7 @@ export function ExaOnboarding() {
       const result = await save({ kind: "session", session: { orderConfirmedToday: true, atCafe, cafeCode, mode, conversationMode, topics: conversationMode === "specific" ? resolvedTopics : [], usefulContext: useful, offerContext: offer, boundaries: commercial } });
       const sid = typeof result?.sessionId === "string" ? result.sessionId : "";
       setSessionId(sid);
+      setSessionIsDemo(mode === "demo");
       go(10);
       // Demo: re-arm the isolated demo pool with this session's exact boundaries so the real matcher
       // has a compatible counterpart to pick. Best-effort — a failure just yields an honest no-match.
@@ -771,10 +776,15 @@ export function ExaOnboarding() {
     // The in-progress intro (if any) and the confirmed matches render as cards in one grid, with Resume
     // living inside the active card (no separate banner). `activeRec` is the resumable intro; `searching`
     // is an active search with no counterpart yet. Confirmed cards drop the active one to avoid a dup.
+    // Everything is scoped to the current mode: a Live dashboard never shows a Demo match or a Demo
+    // in-progress session, and vice versa (demo counterparts live in the isolated corgi-demo cafe).
+    const isDemoMode = mode === "demo";
+    const activeInMode = sessionIsDemo === isDemoMode;
     const activeRec = recommendationId;
-    const searching = Boolean(sessionId && !recommendationId);
-    const confirmedCards = matches.filter((m) => m.recommendationId !== activeRec);
-    const hasAnything = Boolean(activeRec) || searching || confirmedCards.length > 0;
+    const showActive = Boolean(activeRec) && activeInMode;
+    const showSearching = Boolean(sessionId && !recommendationId) && activeInMode;
+    const confirmedCards = matches.filter((m) => m.recommendationId !== activeRec && m.isDemo === isDemoMode);
+    const hasAnything = showActive || showSearching || confirmedCards.length > 0;
     return <Shell step={7} wide>
       <div className="dashboard">
         <div className="dash-hero">
@@ -786,12 +796,12 @@ export function ExaOnboarding() {
           {!matchesLoaded ? <div className="loader" aria-label="Loading your matches"><i/><i/><i/></div>
             : !hasAnything ? <p className="dash-empty">No matches yet. Start a chat to meet someone worth talking to at Corgi.</p>
             : <div className="matches-grid">
-                {searching && <button type="button" className="match-card active" onClick={resumeFlow}>
+                {showSearching && <button type="button" className="match-card active" onClick={resumeFlow}>
                   <span className="match-card-avatar" aria-hidden="true">⋯</span>
                   <span className="match-card-text"><strong>Still looking</strong><small>Corgi is finding someone worth meeting.</small></span>
                   <span className="match-card-resume" aria-hidden="true">Resume →</span>
                 </button>}
-                {activeRec && <button type="button" className="match-card active" onClick={resumeFlow}>
+                {showActive && <button type="button" className="match-card active" onClick={resumeFlow}>
                   <span className="match-card-avatar" aria-hidden="true">{counterpart?.firstName?.[0]?.toUpperCase() ?? "•"}</span>
                   <span className="match-card-text"><strong>{counterpart?.firstName ?? "Your match"}</strong><small>Introduction in progress</small></span>
                   <span className="match-card-resume" aria-hidden="true">Resume →</span>

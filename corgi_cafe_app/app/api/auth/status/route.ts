@@ -26,13 +26,13 @@ export async function GET() {
   // polling). Own-rows only (RLS scopes visit_intro_sessions to member_id = auth.uid()).
   const { data: session } = await supabase!
     .from("visit_intro_sessions")
-    .select("id,status,expires_at")
+    .select("id,status,expires_at,cafe_code")
     .eq("member_id", data.user.id)
     .in("status", ["searching", "introduced", "meeting"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  let activeSession: { id: string; status: string } | null = null;
+  let activeSession: { id: string; status: string; cafeCode: string } | null = null;
   let activeRecommendationId: string | null = null;
   let introducedAt: string | null = null;
   if (session) {
@@ -40,7 +40,7 @@ export async function GET() {
     // A waiting session only matters while unexpired; a match stays resumable so a dropped
     // connection never loses the introduction.
     if (session.status !== "searching" || notExpired) {
-      activeSession = { id: session.id as string, status: session.status as string };
+      activeSession = { id: session.id as string, status: session.status as string, cafeCode: (session.cafe_code as string) ?? "" };
       if (session.status !== "searching") {
         const { data: statusRow } = await supabase!.rpc("get_my_session_status", { target_session_id: session.id });
         const row = Array.isArray(statusRow) ? statusRow[0] : statusRow;
