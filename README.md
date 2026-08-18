@@ -23,14 +23,15 @@ npm install
 npm run dev          # http://localhost:4313
 ```
 
-With Supabase configured, use the code delivered by Supabase Auth. Without Supabase, use `424242`.
-Refreshing the page clears the in-memory draft.
+With Supabase configured, sign up or sign in with email and a password (or Google). Without Supabase,
+use `424242` in preview mode. Refreshing the page clears the in-memory draft.
 
-Exa needs `EXA_API_KEY`. The app may use `SESSION_SIGNING_SECRET`; a development-only secret is
-used when it is absent outside production.
+Exa needs `EXA_API_KEY`; the LLM match ranker needs `OPENAI_API_KEY`. The app may use
+`SESSION_SIGNING_SECRET`; a development-only secret is used when it is absent outside production.
 Persistence needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The
-publishable key is used with member-scoped Row Level Security; do not add a service-role key to the
-browser environment.
+publishable key is used with member-scoped Row Level Security. A server-only `SUPABASE_SERVICE_ROLE_KEY`
+is required for the match ranker, account deletion, and demo seeding; keep it server-side and never
+add it to the browser environment.
 Copy the Exa app's `.env.local.example` to `.env.local` as needed. Missing provider keys intentionally
 open a manual fallback.
 
@@ -51,11 +52,10 @@ project. The migration uses private recognition-media storage, participant-scope
 ownership policies, and narrow counterpart RPCs. It deliberately gives authenticated clients no
 permission to create recommendations.
 
-The app expects a six-digit email OTP. In the hosted Supabase dashboard, update
-**Authentication → Email Templates → Magic Link** to include `{{ .Token }}`; a template containing
-only `{{ .ConfirmationURL }}` sends a link instead of the code used by this flow. Add the exact
-local and Vercel Preview callback URLs to Supabase Auth's redirect allow list. Google sign-in is
-optional and remains unavailable until its provider is configured.
+Configured sign-in is email and password, so no email-delivery setup or Magic Link template edit is
+needed; keep Supabase's **Confirm email** setting off so sign-up returns a session in the same tab.
+Add the exact local and Vercel Preview callback URLs to Supabase Auth's redirect allow list. Google
+sign-in is optional and remains unavailable until its provider is configured.
 
 ## Verify
 
