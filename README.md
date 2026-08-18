@@ -23,9 +23,6 @@ npm install
 npm run dev          # http://localhost:4313
 ```
 
-With Supabase configured, sign up or sign in with email and a password (or Google). Without Supabase,
-use `424242` in preview mode. Refreshing the page clears the in-memory draft.
-
 Exa needs `EXA_API_KEY`; the LLM match ranker needs `OPENAI_API_KEY`. The app may use
 `SESSION_SIGNING_SECRET`; a development-only secret is used when it is absent outside production.
 Persistence needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The
