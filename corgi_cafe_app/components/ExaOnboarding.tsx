@@ -451,8 +451,10 @@ export function ExaOnboarding() {
           clearMatchState();
           setNotice("Oops, something went wrong. Let us find you another person.");
           go(18);
-        } else if (result.status !== "introduced") {
-          // expired / cancelled / completed — the introduction is over; return home.
+        } else if (result.status === "expired" || result.status === "cancelled" || result.status === "completed") {
+          // A genuinely terminal status — the introduction is over; return home. (Anything else,
+          // including a transient "unknown" from a momentarily missing row, keeps polling rather than
+          // ejecting a live member mid-introduction.)
           clearMatchState(); setSessionId("");
           setNotice("That introduction ended. Start another whenever you’re ready.");
           go(7);
