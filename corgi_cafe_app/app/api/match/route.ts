@@ -50,17 +50,16 @@ export async function POST(request: Request) {
         const ranked = await rankBestMatch(requester, candidates, preference);
         if (ranked) {
           chosenTargetSessionId = ranked.sessionId;
+          // Both directional reasons come from the single ranking call — each side sees a reason about
+          // the OTHER person, written by a model looking at both people's context at once. No second
+          // round-trip on the common path.
           overrideExplanation = ranked.reason || null;
-          // The stored reason is directional (about the counterpart, addressed to the requester), so
-          // the counterpart would otherwise be shown a description of themselves. Write the reverse
-          // reason too — grounded in the counterpart's view of the requester, same company-name rules
-          // — so each side sees a substantive reason about the OTHER person. describeReason (not the
-          // scored ranker) is used here: the match is already committed, so the second person's reason
-          // must not degrade to the generic fallback just because their side would score lower. "" on
-          // failure lets the RPC build the deterministic mirror.
-          const counterpartBlob = candidates.find((c) => c.sessionId === ranked.sessionId);
-          if (counterpartBlob) {
-            counterpartExplanation = (await describeReason(counterpartBlob, requester)) || null;
+          counterpartExplanation = ranked.counterpartReason || null;
+          // Rare: the model returned a pick but omitted the counterpart reason. Fill it with a single
+          // grounded pass so the counterpart never drops to the generic deterministic fallback.
+          if (!counterpartExplanation) {
+            const counterpartBlob = candidates.find((c) => c.sessionId === ranked.sessionId);
+            if (counterpartBlob) counterpartExplanation = (await describeReason(counterpartBlob, requester)) || null;
           }
         }
       }

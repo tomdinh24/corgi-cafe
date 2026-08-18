@@ -727,29 +727,26 @@ export function ExaOnboarding() {
   // configured (real-database) session: it's either a real pairing, an honest no-match, or — only
   // when no database is connected — a clearly-labelled preview introduction.
   const runMatch = async (sid: string) => {
-    // Let the "Corgi is finding someone" screen breathe for at least 1s before moving on, even when
-    // the match (or an honest no-match) resolves faster, so the beat reads as real consideration.
-    const startedAt = Date.now();
-    const holdMin = async () => { const rest = 1000 - (Date.now() - startedAt); if (rest > 0) await new Promise((resolve) => setTimeout(resolve, rest)); };
+    // No artificial dwell: the "Corgi is finding someone" screen shows for exactly as long as the
+    // real work takes. The matcher now drafts both introduction reasons in its single ranking call,
+    // so that call's latency is the honest "consideration" beat — no padded minimum needed.
     const target = sid || sessionId;
     if (setup !== "configured" || !target) {
       setCounterpart(PREVIEW_COUNTERPART); setRecommendationId("");
-      await holdMin();
       setStep((value) => (value === 10 ? 11 : value));
       return;
     }
     try {
       const match = await jsonPost("/api/match", { sessionId: target });
-      if (match.status === "no_match") { await holdMin(); go(18); return; }
-      if (match.status === "preview") { setCounterpart(PREVIEW_COUNTERPART); setRecommendationId(""); await holdMin(); go(11); return; }
+      if (match.status === "no_match") { go(18); return; }
+      if (match.status === "preview") { setCounterpart(PREVIEW_COUNTERPART); setRecommendationId(""); go(11); return; }
       const rec = match.recommendationId as string;
       setRecommendationId(rec);
       const person = await jsonGet(`/api/introduction/${rec}`);
       setCounterpart({ firstName: person.firstName ?? "Someone", roleTitle: person.roleTitle ?? "", currentWork: person.currentWork ?? "", reason: person.reason ?? "" });
-      await holdMin();
       setMatchExpiresAt(Date.now() + MATCH_WINDOW_MS);
       go(11);
-    } catch { await holdMin(); go(18); }
+    } catch { go(18); }
   };
   const loadLinks = async () => {
     if (setup !== "configured" || !recommendationId) { setPostLinks(PREVIEW_LINKS); return; }
