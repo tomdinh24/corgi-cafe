@@ -34,12 +34,12 @@ The working product record, most-authoritative first.
 
 ## Archive (`archive/`)
 
-Superseded or historical material, kept for provenance — not current guidance.
+Superseded or historical material, kept for provenance, not current guidance.
 
-- `onboarding-enrichment-proposal.md` — retired Crustdata-direction proposal (the app uses Exa).
-- `community-onboarding-exa-prototype.md` — early prototype evaluation snapshot, superseded by the implementation handoff.
-- `community-activation-landing/` — the standalone landing prototype; the concept now lives in `corgi_cafe_app/components/LandingPage.tsx`.
-- `plans/` — historical planning artifacts. They reference the old repo layout (`prototypes/…`, `apps/onboarding-exa`) on purpose — they are point-in-time snapshots, not current paths.
+- `onboarding-enrichment-proposal.md`: retired Crustdata-direction proposal (the app uses Exa).
+- `community-onboarding-exa-prototype.md`: early prototype evaluation snapshot, superseded by the implementation handoff.
+- `community-activation-landing/`: the standalone landing prototype; the concept now lives in `corgi_cafe_app/components/LandingPage.tsx`.
+- `plans/`: historical planning artifacts. They reference the old repo layout (`prototypes/…`, `apps/onboarding-exa`) on purpose. They are point-in-time snapshots, not current paths.
 
 ## Conventions
 

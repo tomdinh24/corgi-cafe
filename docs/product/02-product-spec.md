@@ -62,7 +62,7 @@ The shared target condition is more important than the persona label:
 - **Typical context:** Angel, scout, investment-team member, partner, or fund manager with a defined thesis and stage focus.
 - **Constructive needs:** Market learning, founder relationships, thesis-relevant conversations, co-investors, or LP relationships for fund managers.
 - **Potential contribution:** Pattern recognition, company-building feedback, capital context, and relevant introductions.
-- **Guardrail:** Investor presence never implies willingness to receive a pitch. Thesis, stage, conversation preference, and reciprocal value—not public prestige—determine fit.
+- **Guardrail:** Investor presence never implies willingness to receive a pitch. Thesis, stage, conversation preference, and reciprocal value, not public prestige, determine fit.
 
 ### Opportunity-seeking member
 
@@ -335,7 +335,7 @@ Optional social sharing is secondary. A member may share a generic Corgi moment,
 
 ## 17. MVP scope
 
-### P0 — required
+### P0: required
 
 - Post-order awareness surface and educational landing page.
 - Centralized Corgi signup and progressive onboarding, separate from ordering and loyalty.
@@ -351,7 +351,7 @@ Optional social sharing is secondary. A member may share a generic Corgi moment,
 - Post-interaction meeting, relevance, usefulness, and boundary feedback.
 - Synthetic members and visit states for product demonstration.
 
-### P1 — after initial validation
+### P1: after initial validation
 
 - Visit-adjacent “open later” scheduling refinements.
 - Saved private history of prior Corgi introductions.

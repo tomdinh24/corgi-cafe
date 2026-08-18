@@ -1,16 +1,16 @@
-# Corgi Cafe — Community Activation
+# Corgi Cafe: Community Activation
 
 Onboarding + Cafe-introduction ("matching") product for the Corgi community: a member builds a
 confirmed profile (Exa People Search assists identity), starts a consented intro session, is matched
-to a real counterpart, confirms the meeting, and leaves private feedback — persisted on live Supabase.
+to a real counterpart, confirms the meeting, and leaves private feedback, all persisted on live Supabase.
 
 ## Layout
 
-- `corgi_cafe_app/` — the Next.js app (App Router). **This is the product.**
-- `packages/corgi-onboarding-shared/` — shared Zod schemas, security, events, and UI/styles.
-- `supabase/` — Postgres schema (migrations), config, seed, tests.
-- `docs/` — product spec, brand + design standards, reference. `docs/archive/` holds superseded material.
-- `scripts/`, `tests/` — seed scripts + Playwright e2e. Tooling (`package.json`, tsconfig, configs) is at the repo root (npm workspaces).
+- `corgi_cafe_app/`: the Next.js app (App Router). **This is the product.**
+- `packages/corgi-onboarding-shared/`: shared Zod schemas, security, events, and UI/styles.
+- `supabase/`: Postgres schema (migrations), config, seed, tests.
+- `docs/`: product spec, brand + design standards, reference. `docs/archive/` holds superseded material.
+- `scripts/`, `tests/`: seed scripts + Playwright e2e. Tooling (`package.json`, tsconfig, configs) is at the repo root (npm workspaces).
 
 When Supabase is not configured, the app shows a setup notice and remains available as an explicit
 preview using OTP `424242`. Preview mode never claims to save data. Cafe order/presence checks,

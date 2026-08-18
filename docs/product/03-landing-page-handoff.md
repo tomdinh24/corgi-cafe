@@ -2,7 +2,7 @@
 
 ## Marketing and Design Handoff
 
-- **Status:** Shipped — the live landing is `corgi_cafe_app/components/LandingPage.tsx`. This handoff is the copy and interaction source.
+- **Status:** Shipped. The live landing is `corgi_cafe_app/components/LandingPage.tsx`. This handoff is the copy and interaction source.
 - **Audience:** Corgi Cafe Tech Ops, Product, Design, and Engineering
 - **Date:** August 15, 2026
 - **Owners:** Standing Marketing Lead and Design Lead
@@ -85,7 +85,7 @@ There is no helper text beneath the CTA. (Header nav: "How it works" and "Commun
 **Example card:**
 
 - Status: TRUDY IS OPEN NOW · At Corgi
-- Person: Trudy · GTM operator — Developer tools
+- Person: Trudy · GTM operator, Developer tools
 - Reason: Trudy has helped two developer-tool teams move beyond founder-led sales and is open to
   comparing notes.
 - Conversation starter: What are you building?
@@ -188,11 +188,11 @@ for production yet.
 
 ## 8. Analytics
 
-The landing page is currently **un-instrumented** — it emits no analytics events (the prototype's
+The landing page is currently **un-instrumented**: it emits no analytics events (the prototype's
 `window.corgiPrototypeEvents` store and `corgi:analytics` browser event were never built). The app's
 event system is `recordComparisonEvent` (`packages/corgi-onboarding-shared/src/events.ts`), which
 records onboarding-flow events (`step_completed`, `provider_outcome`, `source_rejected`,
-`field_corrected`, `intent_corrected`, `terminal_completed`) to `sessionStorage` — it instruments
+`field_corrected`, `intent_corrected`, `terminal_completed`) to `sessionStorage`. It instruments
 the onboarding flow, not the landing page.
 
 Production instrumentation should add a landing-view and CTA-click event plus entry point, anonymous

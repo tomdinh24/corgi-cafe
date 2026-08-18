@@ -39,7 +39,7 @@ migrated; the same schema backs Demo mode's seeded pool.
 - Counterpart data is not exposed through global profile reads. A narrow RPC returns only first
   name, role, current work, and the introduction reason to an eligible participant.
 - The counterpart's shareable links (including the LinkedIn identifier's URL) and profile photo are
-  revealed only after both members confirm they met — gated server-side in `list_my_confirmed_matches`
+  revealed only after both members confirm they met, gated server-side in `list_my_confirmed_matches`
   and `get_post_meeting_links`, so the URLs never reach the client before mutual meeting.
 - LinkedIn is an identifier only. The app never fetches a LinkedIn page or imports its facts.
 - Cafe presence is a Boolean result with a timestamp. Exact coordinates and movement are not stored.
@@ -75,7 +75,7 @@ Configure the Supabase Auth site URL and allowed redirect URLs for the local and
 Configured sign-in is **email + password**, so no SMTP/email-delivery setup and no Magic Link
 template edit are required; keep Supabase's "Confirm email" setting off so sign-up returns a session
 in the same tab. Enable the **Google** provider in Supabase to allow "Continue with Google". A
-server-only `SUPABASE_SERVICE_ROLE_KEY` (never exposed to the browser) is required — the matching
+server-only `SUPABASE_SERVICE_ROLE_KEY` (never exposed to the browser) is required: the matching
 ranker, account deletion, and demo seeding use the admin client; the publishable key remains the
 only Supabase key sent to the client.
 
