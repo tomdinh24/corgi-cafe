@@ -44,6 +44,10 @@ export async function POST(request: Request) {
         source_host: sourceHost(source.url),
         identifier_only: source.kind === "linkedin_identifier",
         member_confirmed: true,
+        // Links the member confirmed as their own are exchanged once BOTH people tap "we met" — the
+        // mutual-meeting gate IS the permission boundary. Without this the flag defaulted to false and
+        // a real member's links (LinkedIn included) were never revealed, so no one could follow up.
+        share_after_meeting: true,
       }));
       const { error: sourceError } = await supabase!.from("profile_sources").upsert(rows, { onConflict: "member_id,source_kind,source_url" });
       if (sourceError) return NextResponse.json({ message: "Your profile saved, but a source could not be attached." }, { status: 502 });
