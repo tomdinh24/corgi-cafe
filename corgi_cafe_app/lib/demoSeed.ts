@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEMO_CAFE_CODE } from "@/lib/cafes";
 import { DEMO_PEOPLE, type DemoPerson } from "@/lib/demoPeople";
+import { buildMemberEnrichment, ENRICHMENT_PIPELINE_VERSION } from "@/lib/enrichment";
 
 // Seeds/refreshes the curated demo people so a Live-flow match can happen solo. Idempotent and
 // self-healing: creates each person's auth user + profile on first run, then on every call cancels
@@ -56,11 +57,40 @@ export async function seedDemoPeople(admin: SupabaseClient, boundaries: Boundari
       about_me: person.about,
       current_work: person.currentWork,
       favorite_drink: person.drink,
-      enrichment: person.enrichment ?? {},
+      // enrichment is intentionally NOT written here: it's built once through the real pipeline below
+      // and must survive re-seeds. Writing it here would clobber the derived `web` block every call.
       // Only written when the person has one, so a manual photo change isn't clobbered on re-seed.
       ...(person.avatarUrl ? { avatar_url: person.avatarUrl } : {}),
       confirmed_at: now,
     });
+
+    // Run each demo person through the SAME enrichment pipeline a real member gets (lib/enrichment):
+    // their own confirmed URLs + their company's own site → what the company does, stage, founder
+    // status, focus areas, a digest. Done ONCE per person (guarded on a pipeline-versioned `web` block)
+    // so re-seeds don't re-pay the Exa/OpenAI cost, and so an old hand-authored blob is replaced.
+    const { data: existingProfile } = await admin.from("profiles").select("enrichment").eq("member_id", memberId).maybeSingle();
+    const existingEnrichment = (existingProfile?.enrichment && typeof existingProfile.enrichment === "object" ? existingProfile.enrichment : {}) as Record<string, unknown>;
+    const existingWeb = existingEnrichment.web as Record<string, unknown> | undefined;
+    if (!existingWeb || typeof existingWeb.pipelineVersion !== "number") {
+      const base = (person.enrichment ?? {}) as Record<string, unknown>;
+      const outcome = await buildMemberEnrichment({
+        name: `${person.firstName} ${person.lastName}`,
+        company: person.company,
+        role: person.roleTitle,
+        location: person.location,
+        base,
+        sourceUrls: person.sources.map((source) => source.url),
+      });
+      // On a genuine no-signal, stamp an empty versioned block so we stop retrying; on no_content
+      // (likely a transient Exa/key failure) leave it unversioned so the next seed retries.
+      const enrichment =
+        outcome.status === "enriched"
+          ? outcome.enrichment
+          : outcome.reason === "no_content"
+            ? base
+            : { ...base, web: { pipelineVersion: ENRICHMENT_PIPELINE_VERSION, sources: [] } };
+      await admin.from("profiles").update({ enrichment }).eq("member_id", memberId);
+    }
 
     if (person.sources.length) {
       await admin.from("profile_sources").upsert(
