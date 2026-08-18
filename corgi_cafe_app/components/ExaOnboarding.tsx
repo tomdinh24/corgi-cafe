@@ -717,10 +717,10 @@ export function ExaOnboarding() {
   // configured (real-database) session: it's either a real pairing, an honest no-match, or — only
   // when no database is connected — a clearly-labelled preview introduction.
   const runMatch = async (sid: string) => {
-    // Let the "Corgi is finding someone" screen breathe for at least 5s before moving on, even when
-    // the match (or an honest no-match) resolves faster — the beat reads as real consideration.
+    // Let the "Corgi is finding someone" screen breathe for at least 3s before moving on, even when
+    // the match (or an honest no-match) resolves faster, so the beat reads as real consideration.
     const startedAt = Date.now();
-    const holdMin = async () => { const rest = 5000 - (Date.now() - startedAt); if (rest > 0) await new Promise((resolve) => setTimeout(resolve, rest)); };
+    const holdMin = async () => { const rest = 3000 - (Date.now() - startedAt); if (rest > 0) await new Promise((resolve) => setTimeout(resolve, rest)); };
     const target = sid || sessionId;
     if (setup !== "configured" || !target) {
       setCounterpart(PREVIEW_COUNTERPART); setRecommendationId("");
