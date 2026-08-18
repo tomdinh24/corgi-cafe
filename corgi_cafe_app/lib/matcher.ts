@@ -35,8 +35,12 @@ const MIN_SCORE = 55;
 const MODEL = "gpt-4.1-mini";
 const TIMEOUT_MS = 6000;
 
-// Trim the stored enrichment to the fields useful for ranking (drop the raw role list to keep the
-// prompt lean); `web` carries the URL-derived signal (company stage, hiring, investor thesis, digest).
+// Trim the stored enrichment to the fields useful for ranking; `web` carries the URL-derived signal
+// (company stage, hiring, investor thesis, digest). We keep a COMPACT career trajectory too: the raw
+// `roles` list is verbose, but "Title at Company" per role carries founder titles, notable past
+// companies, and progression — strong matching signal that is otherwise lost for anyone whose founder
+// status lives only in `roles` (e.g. no `web` block). Without it a past founder reads as a plain
+// current-title person and the ranker can't find the shared "we both built startups" thread.
 function leanBackground(bg: PersonBlob["background"]) {
   if (!bg || typeof bg !== "object") return undefined;
   const src = bg as Record<string, unknown>;
@@ -47,6 +51,19 @@ function leanBackground(bg: PersonBlob["background"]) {
     if (Array.isArray(value) && value.length === 0) continue;
     if (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0) continue;
     out[key] = value;
+  }
+  if (Array.isArray(src.roles)) {
+    const rawRoles = src.roles as Array<Record<string, unknown>>;
+    const roles = rawRoles
+      .filter((r) => r && (typeof r.title === "string" || typeof r.company === "string"))
+      .slice(0, 6)
+      .map((r) => [r.title, r.company].filter((v) => typeof v === "string" && (v as string).trim()).join(" at "))
+      .filter(Boolean);
+    if (roles.length) out.roles = roles;
+    // Surface a founder flag when a title says so, unless the web block already asserted one.
+    if (out.isFounder === undefined && rawRoles.some((r) => typeof r?.title === "string" && /\b(co-?)?founder\b|\bceo\b/i.test(r.title as string))) {
+      out.isFounder = true;
+    }
   }
   return Object.keys(out).length ? out : undefined;
 }
