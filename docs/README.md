@@ -12,11 +12,11 @@ The working product record, most-authoritative first.
 
 | Document | What it is |
 |---|---|
-| [community-activation-problem-brief.md](product/community-activation-problem-brief.md) | Accepted pre-PRD problem, audience, and activation boundary. The anchor everything else answers to. |
-| [community-activation-product-spec.md](product/community-activation-product-spec.md) | Proposed MVP behavior. Subject to human product acceptance. |
-| [post-order-discovery-landing-page-handoff.md](product/post-order-discovery-landing-page-handoff.md) | Marketing + experience handoff for discovery after ordering. |
-| [community-activation-implementation-handoff.md](product/community-activation-implementation-handoff.md) | What the shipped Exa app (`corgi_cafe_app`) actually implements. |
-| [community-activation-data-schema.md](product/community-activation-data-schema.md) | Data dictionary: where each UI field lands and why. Column-level truth lives in `supabase/migrations/`. |
+| [01-problem-brief.md](product/01-problem-brief.md) | Accepted pre-PRD problem, audience, and activation boundary. The anchor everything else answers to. |
+| [02-product-spec.md](product/02-product-spec.md) | Proposed MVP behavior. Subject to human product acceptance. |
+| [03-landing-page-handoff.md](product/03-landing-page-handoff.md) | Marketing + experience handoff for discovery after ordering. |
+| [04-implementation-handoff.md](product/04-implementation-handoff.md) | What the shipped Exa app (`corgi_cafe_app`) actually implements. |
+| [05-data-schema.md](product/05-data-schema.md) | Data dictionary: where each UI field lands and why. Column-level truth lives in `supabase/migrations/`. |
 
 ## Standards (`docs/`)
 

@@ -10,11 +10,11 @@ architecture remain gated on human product, privacy, legal, and vendor review.
 
 ## Source hierarchy
 
-- `docs/product/community-activation-problem-brief.md` defines the accepted problem, audience, and
+- `docs/product/01-problem-brief.md` defines the accepted problem, audience, and
   activation boundary.
-- `docs/product/community-activation-product-spec.md` defines the current proposed MVP behavior and
+- `docs/product/02-product-spec.md` defines the current proposed MVP behavior and
   remains subject to human product acceptance.
-- `docs/product/post-order-discovery-landing-page-handoff.md` and its linked prototype are the
+- `docs/product/03-landing-page-handoff.md` and its linked prototype are the
   current marketing and experience handoff for discovery after ordering.
 - `docs/archive/onboarding-enrichment-proposal.md` is an archived research/experiment proposal
   (Crustdata direction; the shipped app uses Exa). It does
